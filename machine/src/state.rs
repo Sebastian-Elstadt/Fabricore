@@ -141,6 +141,14 @@ impl State {
         self.last_command = Some(cmd.command_id.clone());
         let cmd_type = cmd.command_type.to_uppercase();
 
+        // for "child machines", they will receive their next part to process from the server
+        if let Some(part_id) = cmd.parameters.get("part_id")
+            && !part_id.is_empty()
+        {
+            self.current_part_id = Some(part_id.clone());
+            info!(target: "cmd", "📦 assigned part {part_id}");
+        }
+
         match cmd_type.as_str() {
             "PAUSE" => {
                 self.run_state = RunState::Paused;
@@ -180,7 +188,7 @@ impl State {
                     self.load_target = v.clamp(0.0, 100.0);
                     info!(target: "cmd", "⏱  ADJUST_SPEED — spindle_load target = {}", self.load_target);
                 }
-            },
+            }
             "INJECT_DEFECT" => {
                 let mut rng = rand::rng();
 
@@ -195,7 +203,7 @@ impl State {
                 }
 
                 error!(target: "cmd", "💥 INJECT_DEFECT — quality dropped to {:.0}", self.quality_score);
-            },
+            }
             unknown => warn!(target: "cmd", "❓ unknown command type: {unknown}"),
         }
     }
