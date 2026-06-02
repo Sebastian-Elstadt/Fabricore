@@ -1,10 +1,49 @@
 use rand::{RngExt, rngs::ThreadRng};
 use std::time::{Duration, Instant};
-use tracing::warn;
+use tracing::{warn, info};
 
-use crate::state::{PartPhase, RunState, State};
+use crate::{
+    config::Config,
+    state::{PartPhase, RunState, State},
+};
 
 impl State {
+    pub fn advance_part(&mut self, cfg: &Config) {
+        if self.run_state != RunState::Running {
+            return;
+        }
+
+        match self.part_phase {
+            PartPhase::Idle => {
+                if self.current_part_id.is_none() {
+                    if !cfg.is_source_machine() {
+                        return;
+                    }
+
+                    self.part_counter += 1;
+                    let part_id = format!("PART-{:04}", 1000 + self.part_counter);
+                    info!(target: "part", "🟢 new part spawned: {part_id}");
+                    self.current_part_id = Some(part_id);
+                }
+
+                self.part_phase = PartPhase::InProgress;
+                self.part_started = Some(Instant::now());
+                self.cycle_time_sec = 0.0;
+            }
+            PartPhase::InProgress => {
+                self.part_phase = PartPhase::Completed;
+                let part_id = self.current_part_id.clone().unwrap_or_default();
+                info!(target: "part", "✅ part {part_id} completed (q={:.0})", self.quality_score);
+            }
+            PartPhase::Completed => {
+                self.current_part_id = None;
+                self.part_phase = PartPhase::Idle;
+                self.cycle_time_sec = 0.0;
+                self.part_quarantined = false;
+            }
+        }
+    }
+
     pub fn simulation_tick(&mut self) {
         // measure time since last tick
         let now = Instant::now();

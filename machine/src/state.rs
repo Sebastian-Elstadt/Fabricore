@@ -1,5 +1,12 @@
-use crate::config::Config;
-use std::time::{Instant};
+use chrono::Utc;
+use rand::RngExt;
+use std::time::{Duration, Instant};
+use tracing::{debug, error, info, warn};
+
+use crate::{
+    comms::{CommandMessage, TelemetryMessage},
+    config::Config,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RunState {
@@ -112,4 +119,25 @@ impl State {
             }
         }
     }
+
+    pub fn build_telemetry_message(&self, cfg: &Config) -> TelemetryMessage {
+        let now = Instant::now();
+        TelemetryMessage {
+            machine_id: cfg.machine_id.clone(),
+            part_id: self.current_part_id.clone().unwrap_or_default(),
+            timestamp_ms: Utc::now().timestamp_millis(),
+            temperature: round(self.temperature, 1),
+            vibration: round(self.vibration, 1),
+            spindle_load: round(self.spindle_load, 1),
+            cycle_time_sec: round(self.cycle_time_sec, 1),
+            quality_score: round(self.quality_score, 1),
+            status: self.status_str(now).to_string(),
+            current_part_status: self.part_status_str().to_string(),
+        }
+    }
+}
+
+fn round(num: f32, decimal_places: u8) -> f32 {
+    let x = (decimal_places as f32) * 10.0;
+    (num * x).round() / x
 }

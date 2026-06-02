@@ -1,17 +1,20 @@
 mod config;
-mod state;
 mod simulation;
+mod state;
 pub mod comms {
     tonic::include_proto!("comms");
 }
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use comms::machine_telemetry_client::MachineTelemetryClient;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::comms::TelemetryMessage;
 
@@ -22,7 +25,7 @@ async fn main() {
     let cfg = config::Config::from_env();
     info!(target: "boot", "🏭 machine controller starting: {:?}", cfg);
 
-    let state = Arc::new(state::State::new(&cfg));
+    let state = Arc::new(Mutex::new(state::State::new(&cfg)));
 
     let mut backoff_secs = 1u64;
     loop {
@@ -52,7 +55,7 @@ fn setup_pretty_logging() {
         .init();
 }
 
-async fn run(cfg: &config::Config, state: Arc<state::State>) -> Result<(), tonic::Status> {
+async fn run(cfg: &config::Config, state: Arc<Mutex<state::State>>) -> Result<(), tonic::Status> {
     let mut client = MachineTelemetryClient::connect(cfg.backend_url.clone())
         .await
         .map_err(|err| tonic::Status::unavailable(format!("connection failed: {err}")))?;
@@ -67,13 +70,29 @@ async fn run(cfg: &config::Config, state: Arc<state::State>) -> Result<(), tonic
         let state = state.clone();
         tokio::spawn(async move {
             loop {
-                let sleep_ms =
-                    ((cfg.telemetry_interval_ms as f32) * state.sim_speed).max(100.0) as u64;
+                let sleep_ms = {
+                    let s = state.lock().unwrap();
+                    ((cfg.telemetry_interval_ms as f32) * s.sim_speed).max(100.0) as u64
+                };
+
                 tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
 
-                // simulate tick
-                // build telemetry packet
-                // send packet
+                let msg = {
+                    let mut s = state.lock().unwrap();
+                    s.simulation_tick();
+                    s.build_telemetry_message(&cfg)
+                };
+
+                debug!(
+                    target: "telemetry",
+                    "{} part={} {}°C vib={} load={}% q={} [{}/{}]",
+                    msg.machine_id, msg.part_id, msg.temperature, msg.vibration,
+                    msg.spindle_load, msg.quality_score, msg.status, msg.current_part_status
+                );
+
+                if tx.send(msg).await.is_err() {
+                    break;
+                }
             }
         })
     };
@@ -83,11 +102,15 @@ async fn run(cfg: &config::Config, state: Arc<state::State>) -> Result<(), tonic
         let state = state.clone();
         tokio::spawn(async move {
             loop {
-                let sleep_ms =
-                    ((cfg.part_cycle_base_ms as f32) * state.sim_speed).max(250.0) as u64;
+                let sleep_ms = {
+                    let s = state.lock().unwrap();
+                    ((cfg.part_cycle_base_ms as f32) * s.sim_speed).max(100.0) as u64
+                };
+
                 tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
 
-                // bump part's status up
+                let mut s = state.lock().unwrap();
+                s.advance_part(&cfg);
             }
         })
     };
@@ -99,7 +122,7 @@ async fn run(cfg: &config::Config, state: Arc<state::State>) -> Result<(), tonic
         info!(target: "net", "telemetry stream open; awaiting commands");
         while let Some(cmd) = inbound.message().await? {
             info!(target: "cmd", "↩ received {} (id={})", cmd.command_type, cmd.command_id);
-            // offload command execution to state
+            // TODO
         }
 
         Ok(())
