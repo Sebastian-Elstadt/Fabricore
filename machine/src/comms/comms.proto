@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package comms;
+
+service MachineTelemetry {
+  rpc TelemetryStream(stream TelemetryMessage) returns (stream CommandMessage);
+}
+
+message TelemetryMessage {
+  string machine_id      = 1;
+  string part_id         = 2;        // e.g. PART-7842
+  int64  timestamp_ms    = 3;
+  float  temperature     = 4;        // °C
+  float  vibration       = 5;        // mm/s
+  float  spindle_load    = 6;        // %
+  float  cycle_time_sec  = 7;
+  float  quality_score   = 8;        // 0-100
+  string status          = 9;        // "processing" | "idle" | "paused" | "fault" | "stopped"
+  string current_part_status = 10;   // "in_progress" | "completed" | "quarantined"
+}
+
+message CommandMessage {
+  string command_id   = 1;
+  string command_type = 2;           // "PAUSE", "RESUME", "EMERGENCY_STOP", "ADJUST_SPEED", "COOL_DOWN", "INJECT_DEFECT"
+  map<string, string> parameters = 3;
+  int64 timestamp_ms  = 4;
+}
