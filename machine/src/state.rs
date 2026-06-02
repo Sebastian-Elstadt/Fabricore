@@ -1,7 +1,7 @@
 use chrono::Utc;
 use rand::RngExt;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     comms::{CommandMessage, TelemetryMessage},
@@ -133,6 +133,70 @@ impl State {
             quality_score: round(self.quality_score, 1),
             status: self.status_str(now).to_string(),
             current_part_status: self.part_status_str().to_string(),
+        }
+    }
+
+    pub fn execute_command(&mut self, cmd: &CommandMessage) {
+        let now = Instant::now();
+        self.last_command = Some(cmd.command_id.clone());
+        let cmd_type = cmd.command_type.to_uppercase();
+
+        match cmd_type.as_str() {
+            "PAUSE" => {
+                self.run_state = RunState::Paused;
+                warn!(target: "cmd", "⏸  PAUSE — processing halted");
+            }
+            "RESUME" => {
+                self.run_state = RunState::Running;
+                info!(target: "cmd", "▶  RESUME — back to running");
+            }
+            "EMERGENCY_STOP" => {
+                self.run_state = RunState::Stopped;
+                self.overheat_until = None;
+                self.cooldown_until = Some(now + Duration::from_secs(15));
+                error!(target: "cmd", "🛑 EMERGENCY_STOP — rapid cool-down");
+            }
+            "COOL_DOWN" => {
+                let secs = rand::rng().random_range(10.0..15.0);
+                self.overheat_until = None;
+                self.cooldown_until = Some(now + Duration::from_secs_f32(secs));
+                info!(target: "cmd", "❄  COOL_DOWN — forcing 35°C over {:.0}s", secs);
+            }
+            "ADJUST_SPEED" => {
+                if let Some(v) = cmd
+                    .parameters
+                    .get("sim_speed")
+                    .and_then(|s| s.parse::<f32>().ok())
+                {
+                    self.sim_speed = v.clamp(0.1, 20.0);
+                    info!(target: "cmd", "⏱  ADJUST_SPEED — sim_speed = {}", self.sim_speed);
+                }
+
+                if let Some(v) = cmd
+                    .parameters
+                    .get("spindle_load")
+                    .and_then(|s| s.parse::<f32>().ok())
+                {
+                    self.load_target = v.clamp(0.0, 100.0);
+                    info!(target: "cmd", "⏱  ADJUST_SPEED — spindle_load target = {}", self.load_target);
+                }
+            },
+            "INJECT_DEFECT" => {
+                let mut rng = rand::rng();
+
+                // spike it, and trigger a random poor quality score
+                self.quality_score = rng.random_range(45.0..69.0);
+                self.vibration += 4.0;
+                self.temperature += 6.0;
+                self.defect_boost_until = Some(now + Duration::from_secs(8));
+
+                if self.part_phase == PartPhase::InProgress {
+                    self.part_quarantined = true;
+                }
+
+                error!(target: "cmd", "💥 INJECT_DEFECT — quality dropped to {:.0}", self.quality_score);
+            },
+            unknown => warn!(target: "cmd", "❓ unknown command type: {unknown}"),
         }
     }
 }

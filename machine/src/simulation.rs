@@ -1,6 +1,6 @@
 use rand::{RngExt, rngs::ThreadRng};
 use std::time::{Duration, Instant};
-use tracing::{warn, info};
+use tracing::{info, warn};
 
 use crate::{
     config::Config,
@@ -33,7 +33,12 @@ impl State {
             PartPhase::InProgress => {
                 self.part_phase = PartPhase::Completed;
                 let part_id = self.current_part_id.clone().unwrap_or_default();
-                info!(target: "part", "✅ part {part_id} completed (q={:.0})", self.quality_score);
+
+                if self.part_quarantined {
+                    warn!(target: "part", "⚠️  part {part_id} completed but QUARANTINED");
+                } else {
+                    info!(target: "part", "✅ part {part_id} completed (q={:.0})", self.quality_score);
+                }
             }
             PartPhase::Completed => {
                 self.current_part_id = None;

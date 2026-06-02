@@ -122,7 +122,7 @@ async fn run(cfg: &config::Config, state: Arc<Mutex<state::State>>) -> Result<()
         info!(target: "net", "telemetry stream open; awaiting commands");
         while let Some(cmd) = inbound.message().await? {
             info!(target: "cmd", "↩ received {} (id={})", cmd.command_type, cmd.command_id);
-            // TODO
+            state.lock().unwrap().execute_command(&cmd);
         }
 
         Ok(())
