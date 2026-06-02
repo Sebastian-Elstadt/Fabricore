@@ -1,5 +1,6 @@
 mod config;
 mod state;
+mod simulation;
 pub mod comms {
     tonic::include_proto!("comms");
 }
