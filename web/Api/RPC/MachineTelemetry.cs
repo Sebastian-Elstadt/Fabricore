@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Threading.Channels;
+using Api.Realtime;
 using App.Abstractions;
 using Domain.Machines;
 using Grpc.Core;
@@ -8,6 +9,7 @@ namespace Api.RPC;
 
 public class MachineTelemetry(
     MachineCommandDispatcher dispatcher,
+    FactoryEventBroadcaster broadcaster,
     IServiceScopeFactory scopeFactory,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
@@ -54,10 +56,12 @@ public class MachineTelemetry(
             await foreach (var msg in readStream.ReadAllAsync(ct))
             {
                 logger.LogInformation("Received telemetry message:\n" + JsonSerializer.Serialize(msg));
+                DateTime timestamp = DateTimeOffset.FromUnixTimeMilliseconds(msg.TimestampMs).UtcDateTime;
+
                 buffer.Add(new App.Telemetry.StoreMachinePacketCommand(
                     MachineId: msg.MachineId,
                     Status: msg.Status,
-                    Timestamp: DateTimeOffset.FromUnixTimeMilliseconds(msg.TimestampMs).UtcDateTime,
+                    Timestamp: timestamp,
                     PartId: msg.PartId,
                     PartStatus: msg.CurrentPartStatus,
                     Temperature: msg.Temperature,
@@ -66,6 +70,23 @@ public class MachineTelemetry(
                     CycleTimeSec: msg.CycleTimeSec,
                     QualityScore: msg.QualityScore
                 ));
+
+                broadcaster.Broadcast(
+                    FactoryEvent.ForTelemetry(
+                        new FactoryTelemetryEvent(
+                            MachineId: msg.MachineId,
+                            Status: msg.Status,
+                            Timestamp: timestamp,
+                            PartId: msg.PartId,
+                            PartStatus: msg.CurrentPartStatus,
+                            Temperature: msg.Temperature,
+                            Vibration: msg.Vibration,
+                            SpindleLoad: msg.SpindleLoad,
+                            CycleTimeSec: msg.CycleTimeSec,
+                            QualityScore: msg.QualityScore
+                        )
+                    )
+                );
 
                 if (buffer.Count >= TelemetryBatchSize)
                 {
@@ -98,6 +119,18 @@ public class MachineTelemetry(
         await foreach (var cmd in reader.ReadAllAsync(ct))
         {
             await writeStream.WriteAsync(cmd);
+
+            broadcaster.Broadcast(
+                FactoryEvent.ForCommand(
+                    new FactoryCommandEvent(
+                        MachineId: machineId,
+                        CommandId: cmd.CommandId,
+                        CommandType: cmd.CommandType,
+                        Parameters: new Dictionary<string, string>(cmd.Parameters),
+                        Timestamp: DateTime.UtcNow
+                    )
+                )
+            );
 
             await using var scope = scopeFactory.CreateAsyncScope();
             var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
