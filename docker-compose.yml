@@ -4,6 +4,9 @@ x-machine-base: &machine-base
     context: ./machine/
     dockerfile: Dockerfile
   restart: unless-stopped
+  networks:
+    - fabricore
+  read_only: true
 
 x-machine-env: &machine-env
   BACKEND_GRPC_URL: http://web:50051
@@ -11,7 +14,29 @@ x-machine-env: &machine-env
   PART_CYCLE_BASE_MS: 8000
   TELEMETRY_INTERVAL_MS: 3000
 
+networks:
+  fabricore:
+    external: true
+
 services:
+  web:
+    image: fabricore-web
+    container_name: fabricore-web
+    read_only: true
+    build:
+      context: ./web/
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+    networks:
+      - fabricore
+    expose:
+      - 50051 # GRPC port exposed within network
+    ports:
+      - "127.0.0.1:8001:5000"
+
   machine-1:
     <<: *machine-base
     container_name: fabricore-machine-1
