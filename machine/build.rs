@@ -3,9 +3,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .build_server(true)
         .compile_protos(
-            &["src/comms/comms.proto"],
-            &["src/comms"],
+            &["../proto/comms.proto"],
+            &["../proto/"],
         )?;
-    println!("cargo:rerun-if-changed=src/comms/comms.proto");
+    println!("cargo:rerun-if-changed=../proto/comms.proto");
     Ok(())
 }

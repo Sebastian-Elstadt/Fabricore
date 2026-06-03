@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
 use crate::{
-    comms::{CommandMessage, TelemetryMessage},
+    proto::{CommandMessage, TelemetryMessage},
     config::Config,
 };
 

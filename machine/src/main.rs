@@ -1,8 +1,8 @@
 mod config;
 mod simulation;
 mod state;
-pub mod comms {
-    tonic::include_proto!("comms");
+pub mod proto {
+    tonic::include_proto!("proto");
 }
 
 use std::{
@@ -10,13 +10,13 @@ use std::{
     time::Duration,
 };
 
-use comms::machine_telemetry_client::MachineTelemetryClient;
+use proto::machine_telemetry_client::MachineTelemetryClient;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
 use tracing::{debug, error, info, warn};
 
-use crate::comms::TelemetryMessage;
+use crate::proto::TelemetryMessage;
 
 #[tokio::main]
 async fn main() {
