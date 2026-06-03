@@ -1,10 +1,12 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using App.Abstractions;
 using Grpc.Core;
 
 namespace Api.RPC;
 
 public class MachineTelemetry(
+    MachineCommandDispatcher dispatcher,
     ITelemetryService telemetryService,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
@@ -15,17 +17,32 @@ public class MachineTelemetry(
         ServerCallContext ctx
     )
     {
-        logger.LogInformation($"Machine connected: {ctx.Peer}");
-
         var ct = ctx.CancellationToken;
+        string? machineId = ctx.RequestHeaders.GetValue("machine-id");
+        if (string.IsNullOrWhiteSpace(machineId))
+        {
+            logger.LogWarning($"Machine ID not provided on connection: {ctx.Peer}");
+            return;
+        }
 
-        // Todo: handle writing to stream
-        await ReadIncomingAsync(readStream, ct);
+        logger.LogInformation($"Machine connected: {machineId} | {ctx.Peer}");
+        var reader = dispatcher.Register(machineId);
 
-        logger.LogInformation($"Machine disconnected: {ctx.Peer}");
+        try
+        {
+            await Task.WhenAll(
+                ReadIncomingAsync(readStream, ct),
+                WriteOutgoingAsync(reader, writeStream, ct)
+            );
+        }
+        finally
+        {
+            dispatcher.Unregister(machineId);
+            logger.LogInformation($"Machine disconnected: {ctx.Peer}");
+        }
     }
 
-    private async Task ReadIncomingAsync(IAsyncStreamReader<Proto.TelemetryMessage> readStream, CancellationToken ct = default)
+    private async Task ReadIncomingAsync(IAsyncStreamReader<Proto.TelemetryMessage> readStream, CancellationToken ct)
     {
         try
         {
@@ -62,6 +79,14 @@ public class MachineTelemetry(
         catch (Exception ex)
         {
             logger.LogError($"Machine read stream error: {ex}");
+        }
+    }
+
+    private async Task WriteOutgoingAsync(ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
+    {
+        await foreach (var cmd in reader.ReadAllAsync(ct))
+        {
+            await writeStream.WriteAsync(cmd);
         }
     }
 }

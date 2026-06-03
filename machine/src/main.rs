@@ -117,9 +117,13 @@ async fn run(cfg: &config::Config, state: Arc<Mutex<state::State>>) -> Result<()
 
     // capture this thread's communications task in this result
     let result: Result<(), tonic::Status> = async {
-        let response = client.telemetry_stream(Request::new(outbound)).await?;
+        let mut request = Request::new(outbound);
+        request.metadata_mut().insert("machine-id", cfg.machine_id.parse().map_err(|_| tonic::Status::invalid_argument("machine_id is not valid ASCII"))?);
+
+        let response = client.telemetry_stream(request).await?;
         let mut inbound = response.into_inner();
         info!(target: "net", "telemetry stream open; awaiting commands");
+
         while let Some(cmd) = inbound.message().await? {
             info!(target: "cmd", "↩ received {} (id={})", cmd.command_type, cmd.command_id);
             state.lock().unwrap().execute_command(&cmd);
