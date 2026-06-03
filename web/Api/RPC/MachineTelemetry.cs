@@ -34,7 +34,7 @@ public class MachineTelemetry(
         {
             await Task.WhenAll(
                 ReadIncomingAsync(readStream, ct),
-                WriteOutgoingAsync(reader, writeStream, ct)
+                WriteOutgoingAsync(machineId, reader, writeStream, ct)
             );
         }
         finally
