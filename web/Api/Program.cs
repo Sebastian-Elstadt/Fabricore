@@ -5,7 +5,7 @@ using Infra;
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddGrpc();
-builder.Services.AddInfra().AddApp();
+builder.Services.AddInfra(builder.Configuration).AddApp();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

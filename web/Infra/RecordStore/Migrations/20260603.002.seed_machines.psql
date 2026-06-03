@@ -1,0 +1,5 @@
+INSERT INTO machines (id, alias, sim_speed)
+VALUES ('M1', 'Master Machine', 1.0),
+('M2', NULL, 1.0),
+('M3', NULL, 1.0),
+('M4', NULL, 1.0);

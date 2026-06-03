@@ -25,8 +25,6 @@ public class Machine
     }
 
     public double SimSpeed { get; set; } = 1.0;
-    public uint PartCycleBaseMs { get; set; } = 8000;
-    public uint TelemetryIntervalMs { get; set; } = 3000;
 
     private Machine() { }
     public Machine(string id, string? alias = null)
@@ -38,15 +36,11 @@ public class Machine
     public static Machine Reconstitute(
         string id,
         string? alias,
-        double simSpeed,
-        uint partCycleBaseMs,
-        uint telemetryIntervalMs
+        double simSpeed
     ) => new Machine
     {
         Id = id,
         _alias = alias,
-        SimSpeed = simSpeed,
-        PartCycleBaseMs = partCycleBaseMs,
-        TelemetryIntervalMs = telemetryIntervalMs
+        SimSpeed = simSpeed
     };
 }

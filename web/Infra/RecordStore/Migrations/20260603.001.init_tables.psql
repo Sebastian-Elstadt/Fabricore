@@ -1,9 +1,7 @@
 CREATE TABLE machines (
     id TEXT PRIMARY KEY,
     alias TEXT NULL,
-    sim_speed NUMERIC(8, 4) NOT NULL, -- Max: 9999.9999
-    part_cycle_base_ms INT NOT NULL,
-    telemetry_interval_ms INT NOT NULL
+    sim_speed NUMERIC(8, 4) NOT NULL -- Max: 9999.9999
 );
 
 CREATE TABLE machine_telemetry_packets (
