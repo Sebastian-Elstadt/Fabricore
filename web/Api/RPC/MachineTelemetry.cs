@@ -8,11 +8,12 @@ namespace Api.RPC;
 
 public class MachineTelemetry(
     MachineCommandDispatcher dispatcher,
-    ITelemetryService telemetryService,
-    ICommandsService commandsService,
+    IServiceScopeFactory scopeFactory,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
 {
+    private const int TelemetryBatchSize = 5;
+
     public override async Task TelemetryStream(
         IAsyncStreamReader<Proto.TelemetryMessage> readStream,
         IServerStreamWriter<Proto.CommandMessage> writeStream,
@@ -46,25 +47,14 @@ public class MachineTelemetry(
 
     private async Task ReadIncomingAsync(IAsyncStreamReader<Proto.TelemetryMessage> readStream, CancellationToken ct)
     {
+        var buffer = new List<App.Telemetry.StoreMachinePacketCommand>(TelemetryBatchSize);
+
         try
         {
-            // A big note here:
-            // 'telemetryService' is injected up top, meaning it will keep resources active for the entire duration of this connection.
-            // Specifically an sql database connection.
-            // Another approach is to spawn a new scoped instance inside this foreach loop to only create* a connection per incoming telemetry message.
-            // However, these messages come in very frequently. So I think it's better to keep 'telemetryService' alive across the entire connection that will write a bunch
-            // of times rather than spawning a new instance and establishing a new connection every 5 seconds (or however long the telemetry interval is).
-
-            // Another approach would be to buffer the incoming packets and only instantiate the 'telemetryService' for say every 10 packets, then dump them all to the database.
-            // But I want live data on the GUI. But! I could also do the buffered persistence, and then just immediately broadcast incoming packets to the GUI over some websocket/tcp connection.
-            // Will get back to this.
-
-            // * I understand it's not _really_ closing and reopening connections, the psql server will manage connections in its pool however it wants. But the principle remains, don't keep resources you don't need.
-
             await foreach (var msg in readStream.ReadAllAsync(ct))
             {
                 logger.LogInformation("Received telemetry message:\n" + JsonSerializer.Serialize(msg));
-                await telemetryService.StoreMachinePacketAsync(new App.Telemetry.StoreMachinePacketCommand(
+                buffer.Add(new App.Telemetry.StoreMachinePacketCommand(
                     MachineId: msg.MachineId,
                     Status: msg.Status,
                     Timestamp: DateTimeOffset.FromUnixTimeMilliseconds(msg.TimestampMs).UtcDateTime,
@@ -75,8 +65,18 @@ public class MachineTelemetry(
                     SpindleLoad: msg.SpindleLoad,
                     CycleTimeSec: msg.CycleTimeSec,
                     QualityScore: msg.QualityScore
-                ), ct);
+                ));
+
+                if (buffer.Count >= TelemetryBatchSize)
+                {
+                    await StorePacketsAsync(buffer, ct);
+                    buffer.Clear();
+                }
             }
+
+            // Flush any packets left over when the stream ends.
+            if (buffer.Count > 0)
+                await StorePacketsAsync(buffer, ct);
         }
         catch (Exception ex)
         {
@@ -84,11 +84,23 @@ public class MachineTelemetry(
         }
     }
 
+    private async Task StorePacketsAsync(IReadOnlyList<App.Telemetry.StoreMachinePacketCommand> packets, CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var telemetryService = scope.ServiceProvider.GetRequiredService<ITelemetryService>();
+
+        foreach (var packet in packets)
+            await telemetryService.StoreMachinePacketAsync(packet, ct);
+    }
+
     private async Task WriteOutgoingAsync(string machineId, ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
     {
         await foreach (var cmd in reader.ReadAllAsync(ct))
         {
             await writeStream.WriteAsync(cmd);
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
             await commandsService.LogMachineCommandAsync(new(machineId, MachineCommandTypeName.ToEnum(cmd.CommandType)));
         }
     }
