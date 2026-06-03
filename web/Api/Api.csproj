@@ -8,17 +8,15 @@
 
     <ItemGroup>
         <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
-        <PackageReference
-            Include="Microsoft.AspNetCore.OpenApi"
-            Version="10.0.8"
-        />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
     </ItemGroup>
 
     <ItemGroup>
-        <Protobuf
-            Include="..\..\proto\comms.proto"
-            GrpcServices="Server"
-        />
+        <Protobuf Include="..\..\proto\comms.proto" GrpcServices="Server" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\App\App.csproj" />
     </ItemGroup>
 
 </Project>

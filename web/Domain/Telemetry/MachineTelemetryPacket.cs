@@ -1,6 +1,6 @@
 namespace Domain.Telemetry;
 
-public class TelemetryPacket
+public class MachineTelemetryPacket
 {
     public string MachineId { get; init; }
     public string Status { get; init; }
@@ -15,7 +15,7 @@ public class TelemetryPacket
     public double CycleTimeSec { get; init; }
     public double QualityScore { get; init; }
 
-    public TelemetryPacket(string machineId, string status, DateTime timestamp)
+    public MachineTelemetryPacket(string machineId, string status, DateTime timestamp)
     {
         MachineId = machineId;
         Status = status;
