@@ -9,8 +9,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo build --locked --release && \
-    cp ./target/release/machine /bin/machine
+    cargo build --locked --release
 
 FROM docker.io/library/alpine:3.18 AS final
 
@@ -25,5 +24,5 @@ RUN adduser \
 
 USER appuser
 
-COPY --from=build /bin/machine /bin/
+COPY --from=build /app/target/release/machine /bin/
 CMD ["/bin/machine"]

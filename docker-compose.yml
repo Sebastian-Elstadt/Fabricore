@@ -1,0 +1,41 @@
+x-machine-base: &machine-base
+  image: fabricore-machine
+  build:
+    context: ./machine/
+    dockerfile: Dockerfile
+  restart: unless-stopped
+
+x-machine-env: &machine-env
+  BACKEND_GRPC_URL: http://web:50051
+  SIM_SPEED: 1.0
+  PART_CYCLE_BASE_MS: 8000
+  TELEMETRY_INTERVAL_MS: 3000
+
+services:
+  machine-1:
+    <<: *machine-base
+    container_name: fabricore-machine-1
+    environment:
+      <<: *machine-env
+      MACHINE_ID: M1
+
+  machine-2:
+    <<: *machine-base
+    container_name: fabricore-machine-2
+    environment:
+      <<: *machine-env
+      MACHINE_ID: M2
+
+  machine-3:
+    <<: *machine-base
+    container_name: fabricore-machine-3
+    environment:
+      <<: *machine-env
+      MACHINE_ID: M3
+
+  machine-4:
+    <<: *machine-base
+    container_name: fabricore-machine-4
+    environment:
+      <<: *machine-env
+      MACHINE_ID: M4
