@@ -1,10 +1,11 @@
 using Api.RPC;
 using App;
+using Infra;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddGrpc();
-builder.Services.AddApp();
+builder.Services.AddInfra().AddApp();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
