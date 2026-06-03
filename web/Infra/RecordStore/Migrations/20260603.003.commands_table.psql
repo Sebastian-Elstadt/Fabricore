@@ -1,0 +1,7 @@
+CREATE TABLE machine_commands (
+    id UUID PRIMARY KEY,
+    created_on TIMESTAMPTZ NOT NULL,
+
+    machine_id TEXT REFERENCES machines(id) ON DELETE CASCADE,
+    type SMALLINT NOT NULL
+);

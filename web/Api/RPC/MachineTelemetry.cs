@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using App.Abstractions;
+using Domain.Machines;
 using Grpc.Core;
 
 namespace Api.RPC;
@@ -8,6 +9,7 @@ namespace Api.RPC;
 public class MachineTelemetry(
     MachineCommandDispatcher dispatcher,
     ITelemetryService telemetryService,
+    ICommandsService commandsService,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
 {
@@ -82,11 +84,12 @@ public class MachineTelemetry(
         }
     }
 
-    private async Task WriteOutgoingAsync(ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
+    private async Task WriteOutgoingAsync(string machineId, ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
     {
         await foreach (var cmd in reader.ReadAllAsync(ct))
         {
             await writeStream.WriteAsync(cmd);
+            await commandsService.LogMachineCommandAsync(new(machineId, MachineCommandTypeName.ToEnum(cmd.CommandType)));
         }
     }
 }

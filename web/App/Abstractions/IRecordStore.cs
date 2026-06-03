@@ -7,4 +7,5 @@ public interface IRecordStore
     Task CommitTransactionAsync(CancellationToken ct = default);
 
     IMachineTelemetryPacketRepository MachineTelemetryPacketRepository { get; }
+    IMachineCommandRepository MachineCommandRepository { get; }
 }

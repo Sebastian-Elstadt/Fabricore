@@ -36,4 +36,8 @@ public class PsqlRecordStore : PsqlQueryExecutor, IRecordStore
     private IMachineTelemetryPacketRepository? _machineTelemetryPacketRepository;
     public IMachineTelemetryPacketRepository MachineTelemetryPacketRepository
         => _machineTelemetryPacketRepository ??= new PsqlMachineTelemetryPacketRepository(this);
+
+    private IMachineCommandRepository? _machineCommandRepository;
+    public IMachineCommandRepository MachineCommandRepository
+        => _machineCommandRepository ??= new PsqlMachineCommandRepository(this);
 }

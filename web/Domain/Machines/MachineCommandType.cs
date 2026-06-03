@@ -1,6 +1,6 @@
 namespace Domain.Machines;
 
-public enum MachineCommandType
+public enum MachineCommandType : short
 {
     Pause,
     Resume,
@@ -29,5 +29,17 @@ public static class MachineCommandTypeName
             MachineCommandType.AdjustSimSpeed => AdjustSimSpeed,
             MachineCommandType.InjectSimDefect => InjectSimDefect,
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
+        };
+
+    public static MachineCommandType ToEnum(string name)
+        => name switch
+        {
+            Pause => MachineCommandType.Pause,
+            Resume => MachineCommandType.Resume,
+            EmergencyStop => MachineCommandType.EmergencyStop,
+            CoolDown => MachineCommandType.CoolDown,
+            AdjustSimSpeed => MachineCommandType.AdjustSimSpeed,
+            InjectSimDefect => MachineCommandType.InjectSimDefect,
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
         };
 }
