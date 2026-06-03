@@ -18,7 +18,31 @@ networks:
   fabricore:
     external: true
 
+volumes:
+  fabricore-postgres:
+    external: true
+
 services:
+  postgres:
+    image: postgres:18.1-alpine
+    container_name: fabricore-postgres
+    restart: unless-stopped
+    volumes:
+      - fabricore-postgres:/var/lib/postgresql
+    networks:
+      - fabricore
+    expose:
+      - 5432
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   web:
     image: fabricore-web
     container_name: fabricore-web
@@ -27,9 +51,13 @@ services:
       context: .
       dockerfile: web/Dockerfile
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5000
+      RecordStore__ConnectionString: ${POSTGRES_CONNECTION_STRING}
     networks:
       - fabricore
     expose:
