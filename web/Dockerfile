@@ -1,13 +1,14 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
-COPY Fabricore.slnx Directory.Build.props ./
-COPY Domain/Domain.csproj Domain/
-COPY Api/Api.csproj Api/
-RUN dotnet restore Api/Api.csproj
+COPY proto ./proto
+COPY web/Fabricore.slnx web/Directory.Build.props web/
+COPY web/Domain/Domain.csproj web/Domain/
+COPY web/Api/Api.csproj web/Api/
+RUN cd web && dotnet restore Api/Api.csproj
 
-COPY . .
-RUN dotnet publish Api/Api.csproj -c Release -o /publish /p:UseAppHost=false
+COPY web/ ./web/
+RUN cd web && dotnet publish Api/Api.csproj -c Release -o /publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
