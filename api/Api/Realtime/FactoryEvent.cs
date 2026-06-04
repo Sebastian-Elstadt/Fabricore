@@ -6,7 +6,8 @@ namespace Api.Realtime;
 public enum FactoryEventType
 {
     Telemetry,
-    Command
+    Command,
+    PartProduced
 }
 
 public record FactoryEvent(
@@ -14,7 +15,8 @@ public record FactoryEvent(
     string MachineId,
     DateTime Timestamp,
     FactoryTelemetryEvent? Telemetry = null,
-    FactoryCommandEvent? Command = null
+    FactoryCommandEvent? Command = null,
+    FactoryPartProducedEvent? PartProduced = null
 )
 {
     public static FactoryEvent ForTelemetry(FactoryTelemetryEvent ev)
@@ -22,6 +24,9 @@ public record FactoryEvent(
 
     public static FactoryEvent ForCommand(FactoryCommandEvent ev)
         => new(FactoryEventType.Command, ev.MachineId, ev.Timestamp, Command: ev);
+
+    public static FactoryEvent ForPartProduced(FactoryPartProducedEvent ev)
+        => new(FactoryEventType.Command, ev.MachineId, ev.Timestamp, PartProduced: ev);
 }
 
 public record FactoryTelemetryEvent(
@@ -43,4 +48,12 @@ public record FactoryCommandEvent(
     string CommandType,
     IReadOnlyDictionary<string, string> Parameters,
     DateTime Timestamp
+);
+
+public record FactoryPartProducedEvent(
+    string MachineId,
+    DateTime Timestamp,
+    string PartId,
+    DateTime StartedOn,
+    DateTime FinishedOn
 );

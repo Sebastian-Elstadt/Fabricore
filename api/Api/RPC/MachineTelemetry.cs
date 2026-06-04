@@ -185,7 +185,20 @@ public class MachineTelemetry(
         var toMachineId = GetSuccessorMachine(fromMachineId);
         if (toMachineId is null)
         {
-            await partsService.MarkRecordFinishedAsync(partId, messageTimestamp, ct);
+            var part = await partsService.MarkRecordFinishedAsync(partId, messageTimestamp, ct);
+
+            broadcaster.Broadcast(
+                FactoryEvent.ForPartProduced(
+                    new FactoryPartProducedEvent(
+                        MachineId: fromMachineId,
+                        Timestamp: DateTime.UtcNow,
+                        PartId: partId,
+                        StartedOn: part.StartedOn,
+                        FinishedOn: messageTimestamp
+                    )
+                )
+            );
+
             logger.LogInformation($"Part {partId} completed final stage on {fromMachineId}");
             return;
         }

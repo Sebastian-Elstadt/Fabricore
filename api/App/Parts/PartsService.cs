@@ -19,12 +19,13 @@ public class PartsService(IRecordStore recordStore) : IPartsService
         }
     }
 
-    public async Task MarkRecordFinishedAsync(string partId, DateTime finishedOn, CancellationToken ct = default)
+    public async Task<Part> MarkRecordFinishedAsync(string partId, DateTime finishedOn, CancellationToken ct = default)
     {
         var part = await recordStore.PartRepository.GetByIdAsync(partId, ct);
         if (part is null) throw new InvalidOperationException($"No part was found with Id: {partId}");
 
         part.FinishedOn = finishedOn;
         await recordStore.PartRepository.UpdateAsync(part, ct);
+        return part;
     }
 }
