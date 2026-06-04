@@ -26,7 +26,7 @@ public record FactoryEvent(
         => new(FactoryEventType.Command, ev.MachineId, ev.Timestamp, Command: ev);
 
     public static FactoryEvent ForPartProduced(FactoryPartProducedEvent ev)
-        => new(FactoryEventType.Command, ev.MachineId, ev.Timestamp, PartProduced: ev);
+        => new(FactoryEventType.PartProduced, ev.MachineId, ev.Timestamp, PartProduced: ev);
 }
 
 public record FactoryTelemetryEvent(
