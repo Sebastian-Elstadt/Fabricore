@@ -8,14 +8,16 @@ public class MachineCommand
 
     public string MachineId { get; init; } = string.Empty;
     public MachineCommandType Type { get; init; }
+    public IReadOnlyDictionary<string, string> Parameters { get; private init; } = new Dictionary<string, string>();
 
     public void MarkExecuted(DateTime executedOn) => ExecutedOn = executedOn;
 
     private MachineCommand() { }
-    public MachineCommand(string machineId, MachineCommandType type)
+    public MachineCommand(string machineId, MachineCommandType type, IReadOnlyDictionary<string, string>? parameters = null)
     {
         MachineId = machineId;
         Type = type;
+        Parameters = parameters ?? new Dictionary<string, string>();
     }
 
     public static MachineCommand Reconstitute(
@@ -23,13 +25,15 @@ public class MachineCommand
         DateTime createdOn,
         string machineId,
         MachineCommandType type,
-        DateTime? executedOn
+        DateTime? executedOn,
+        IReadOnlyDictionary<string, string> parameters
     ) => new MachineCommand
     {
         Id = id,
         CreatedOn = createdOn,
         MachineId = machineId,
         Type = type,
-        ExecutedOn = executedOn
+        ExecutedOn = executedOn,
+        Parameters = parameters
     };
 }

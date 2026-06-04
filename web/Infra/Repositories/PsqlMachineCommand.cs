@@ -1,3 +1,4 @@
+using System.Text.Json;
 using App.Abstractions;
 using Domain.Machines;
 using Infra.RecordStore;
@@ -14,20 +15,23 @@ public class PsqlMachineCommandRepository(ISqlQueryExecutor executor) : IMachine
                 id,
                 created_on,
                 machine_id,
-                type
+                type,
+                parameters
             )
             VALUES (
                 @Id,
                 @CreatedOn,
                 @MachineId,
-                @Type
+                @Type,
+                @Parameters::jsonb
             );
             """,
             new {
                 cmd.Id,
                 cmd.CreatedOn,
                 cmd.MachineId,
-                Type = (short)cmd.Type
+                Type = (short)cmd.Type,
+                Parameters = JsonSerializer.Serialize(cmd.Parameters)
             },
             ct
         );

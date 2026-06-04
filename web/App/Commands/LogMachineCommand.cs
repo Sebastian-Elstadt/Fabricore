@@ -4,9 +4,10 @@ namespace App.Commands;
 
 public record LogMachineCommandCommand(
     string MachineId,
-    MachineCommandType Type
+    MachineCommandType Type,
+    IReadOnlyDictionary<string, string>? Parameters = null
 )
 {
     public MachineCommand ToMachineCommand()
-        => new MachineCommand(MachineId, Type);
+        => new MachineCommand(MachineId, Type, Parameters);
 }
