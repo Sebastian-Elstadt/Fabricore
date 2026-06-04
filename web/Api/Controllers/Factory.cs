@@ -1,19 +1,25 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Realtime;
+using App.Abstractions;
+using App.Factory;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
 [ApiController]
 [Route("factory")]
-public class FactoryController(FactoryEventBroadcaster broadcaster) : ControllerBase
+public class FactoryController(FactoryEventBroadcaster broadcaster, IFactoryQueries queries) : ControllerBase
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = null,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    [HttpGet("state")]
+    public Task<FactoryStateSnapshot> GetState(CancellationToken ct)
+        => queries.GetFactoryStateAsync(ct);
 
     [HttpGet("events")]
     public async Task Events(CancellationToken ct)

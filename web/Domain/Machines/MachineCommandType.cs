@@ -19,7 +19,7 @@ public static class MachineCommandTypeName
     public const string AdjustSimSpeed = "ADJUST_SPEED";
     public const string InjectSimDefect = "INJECT_DEFECT";
 
-    public static string ToName(this MachineCommandType type)
+    public static string ToCode(this MachineCommandType type)
         => type switch
         {
             MachineCommandType.Pause => Pause,
@@ -41,5 +41,17 @@ public static class MachineCommandTypeName
             AdjustSimSpeed => MachineCommandType.AdjustSimSpeed,
             InjectSimDefect => MachineCommandType.InjectSimDefect,
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
+        };
+
+    public static string ToDisplayName(this MachineCommandType type)
+        => type switch
+        {
+            MachineCommandType.Pause => "Pause",
+            MachineCommandType.Resume => "Resume",
+            MachineCommandType.EmergencyStop => "Emergency Stop",
+            MachineCommandType.CoolDown => "Cool Down",
+            MachineCommandType.AdjustSimSpeed => "Adjust Sim Speed",
+            MachineCommandType.InjectSimDefect => "Inject Sim Defect",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
         };
 }

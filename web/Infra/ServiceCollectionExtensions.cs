@@ -1,4 +1,6 @@
 using App.Abstractions;
+using Dapper;
+using Infra.Queries;
 using Infra.RecordStore;
 using Infra.RecordStore.Psql;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,8 +17,11 @@ public static class ServiceCollectionExtensions
         recordStoreConfig.EnsureValid();
 
         PsqlMigrator.MigrateDatabase(recordStoreConfig.ConnectionString);
+        DefaultTypeMap.MatchNamesWithUnderscores = true; // dapper
 
         services.AddScoped<IRecordStore, PsqlRecordStore>(sp => new PsqlRecordStore(recordStoreConfig));
+        services.AddScoped<ISqlQueryExecutor>(sp => new PsqlQueryExecutor(recordStoreConfig.ConnectionString));
+        services.AddScoped<IFactoryQueries, PsqlFactoryQueries>();
         return services;
     }
 }
