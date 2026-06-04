@@ -27,6 +27,11 @@ public class PsqlPartRepository(ISqlQueryExecutor executor) : IPartRepository
         return executor.QuerySingleAsync<Part>("SELECT * FROM parts WHERE id = @id", new { id }, ct);
     }
 
+    public Task<IEnumerable<Part>> GetTopAsync(int count, CancellationToken ct = default)
+    {
+        return executor.QueryManyAsync<Part>("SELECT * FROM parts ORDER BY started_on DESC LIMIT @count", new { count }, ct);
+    }
+
     public async Task UpdateAsync(Part part, CancellationToken ct = default)
     {
         int updated = await executor.ExecuteAsync(

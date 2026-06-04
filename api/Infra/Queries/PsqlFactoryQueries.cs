@@ -11,6 +11,15 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
     public async Task<FactoryStateSnapshot> GetFactoryStateAsync(CancellationToken ct = default)
     {
         const int PerMachineLimit = 10;
+        const int TopLatestPartsCount = 10;
+
+        var latestParts = (
+            await queryExecutor.QueryManyAsync<LatestPart>(
+                "SELECT * FROM parts ORDER BY started_on DESC LIMIT @TopLatestPartsCount",
+                new { TopLatestPartsCount },
+                ct
+            )
+        ).ToList();
 
         var machines = (await queryExecutor.QueryManyAsync<MachineRow>(
             """
@@ -61,7 +70,7 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
             .ToDictionary(g => g.Key, g => g.ToList());
 
         return new FactoryStateSnapshot(
-            machines.Select(m => new FactoryMachine(
+            Machines: machines.Select(m => new FactoryMachine(
                 Id: m.Id,
                 Alias: m.Alias,
                 SimSpeed: m.SimSpeed,
@@ -72,7 +81,8 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
                     ? c.Select(ToCommandDto).ToList()
                     : []
             )).ToList(),
-            BuildAvailableCommands()
+            AvailableCommands: BuildAvailableCommands(),
+            LatestParts: latestParts
         );
     }
 

@@ -19,8 +19,9 @@ public static class ServiceCollectionExtensions
         PsqlMigrator.MigrateDatabase(recordStoreConfig.ConnectionString);
         DefaultTypeMap.MatchNamesWithUnderscores = true; // dapper
 
-        services.AddScoped<IRecordStore, PsqlRecordStore>(sp => new PsqlRecordStore(recordStoreConfig));
-        services.AddScoped<ISqlQueryExecutor>(sp => new PsqlQueryExecutor(recordStoreConfig.ConnectionString));
+        services.AddScoped(sp => new PsqlRecordStore(recordStoreConfig));
+        services.AddScoped<IRecordStore>(sp => sp.GetRequiredService<PsqlRecordStore>());
+        services.AddScoped<ISqlQueryExecutor>(sp => sp.GetRequiredService<PsqlRecordStore>());
         services.AddScoped<IFactoryQueries, PsqlFactoryQueries>();
         return services;
     }

@@ -4,7 +4,8 @@ namespace App.Factory;
 
 public record FactoryStateSnapshot(
     IReadOnlyList<FactoryMachine> Machines,
-    IReadOnlyList<AvailableCommand> AvailableCommands
+    IReadOnlyList<AvailableCommand> AvailableCommands,
+    IReadOnlyList<LatestPart> LatestParts
 );
 
 public record FactoryMachine(
@@ -55,3 +56,5 @@ public record AvailableCommandField(
     string Label,
     string Key
 );
+
+public record LatestPart(string Id, DateTime StartedOn, DateTime? FinishedOn);
