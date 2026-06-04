@@ -1,0 +1,10 @@
+CREATE TABLE parts (
+    id TEXT PRIMARY KEY,
+    started_on TIMESTAMPTZ NOT NULL,
+    finished_on TIMESTAMPTZ NULL
+);
+
+ALTER TABLE machine_telemetry_packets
+ADD CONSTRAINT fk_machine_telemetry_packets_parts
+FOREIGN KEY (part_id)
+REFERENCES parts (id) ON DELETE CASCADE;
