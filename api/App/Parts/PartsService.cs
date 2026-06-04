@@ -5,10 +5,18 @@ namespace App.Parts;
 
 public class PartsService(IRecordStore recordStore) : IPartsService
 {
-    public async Task AddRecordAsync(string partId, DateTime startedOn, CancellationToken ct = default)
+    public async Task<bool> TryAddRecordAsync(string partId, DateTime startedOn, CancellationToken ct = default)
     {
-        var part = new Part(partId, startedOn);
-        await recordStore.PartRepository.AddAsync(part, ct);
+        try
+        {
+            var part = new Part(partId, startedOn);
+            await recordStore.PartRepository.AddAsync(part, ct);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task MarkRecordFinishedAsync(string partId, DateTime finishedOn, CancellationToken ct = default)

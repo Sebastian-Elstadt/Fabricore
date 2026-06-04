@@ -6,7 +6,12 @@ public class MachineTelemetryPacket
     public string Status { get; init; }
     public DateTime Timestamp { get; init; }
 
-    public string? PartId { get; init; }
+    private string? _partId;
+    public string? PartId
+    {
+        get => _partId;
+        init => _partId = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
     public string? PartStatus { get; init; }
 
     public double Temperature { get; init; }

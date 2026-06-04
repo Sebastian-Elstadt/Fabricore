@@ -19,7 +19,6 @@ public class MachineTelemetry(
 {
     private const int TelemetryBatchSize = 5;
     private readonly ConcurrentDictionary<string, DateTime> partHandoffs = [];
-    private HashSet<string> activeParts = [];
 
     public override async Task TelemetryStream(
         IAsyncStreamReader<Proto.TelemetryMessage> readStream,
@@ -62,10 +61,10 @@ public class MachineTelemetry(
             {
                 DateTime timestamp = DateTimeOffset.FromUnixTimeMilliseconds(msg.TimestampMs).UtcDateTime;
 
-                if (!activeParts.Contains(msg.PartId))
+                if (!string.IsNullOrWhiteSpace(msg.PartId))
                 {
-                    activeParts.Add(msg.PartId);
-                    await partsService.AddRecordAsync(msg.PartId, timestamp.AddSeconds(msg.CycleTimeSec), ct);
+                    // add if not exists
+                    await partsService.TryAddRecordAsync(msg.PartId, timestamp.AddSeconds(msg.CycleTimeSec), ct);
                 }
 
                 buffer.Add(new App.Telemetry.StoreMachinePacketCommand(
@@ -186,7 +185,6 @@ public class MachineTelemetry(
         var toMachineId = GetSuccessorMachine(fromMachineId);
         if (toMachineId is null)
         {
-            activeParts.Remove(partId);
             await partsService.MarkRecordFinishedAsync(partId, messageTimestamp, ct);
             logger.LogInformation($"Part {partId} completed final stage on {fromMachineId}");
             return;
