@@ -41,42 +41,32 @@ To fully reset the database:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                Docker Network                               │
-│  ┌──────────────┐   gRPC (bidir stream)   ┌──────────────────────────────┐ │
-│  │  machine-1   │◄─────────────────── ───►│                              │ │
-│  │  (Rust sim)  │  telemetry + commands   │                              │ │
-│  └──────────────┘                         │                              │ │
-│  ┌──────────────┐                         │   .NET 10 API (Kestrel)      │ │
-│  │  machine-2   │◄───────────────────────►│   • gRPC: MachineTelemetry   │ │
-│  └──────────────┘                         │   • REST: /api/commands      │ │
-│  ┌──────────────┐                         │         /api/factory/*       │ │
-│  │  machine-3   │◄───────────────────────►│         /api/parts/*         │ │
-│  └──────────────┘                         │   • SSE:  /api/factory/events│ │
-│  ┌──────────────┐                         │   • Static: Angular SPA      │ │
-│  │  machine-4   │◄───────────────────────►│                              │ │
-│  └──────────────┘                         └──────────────┬───────────────┘ │
-│                                                         │                 │
-│  (M1 spawns parts; completion triggers                 │                 │
-│   ASSIGN_PART handoff M1→M2→M3→M4)                 │                 │
-│                                                         ▼                 │
-│                                                ┌──────────────────┐       │
-│                                                │   PostgreSQL 18  │       │
-│                                                │   • machines     │       │
-│                                                │   • parts        │       │
-│                                                │   • telemetry    │       │
-│                                                │   • commands     │       │
-│                                                └──────────────────┘       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ SSE (Server-Sent Events)
-                                      ▼
-                              ┌──────────────────┐
-                              │ Angular 21 SPA   │
-                              │ (signals, live   │
-                              │  sparklines)     │
-                              └──────────────────┘
+```mermaid
+flowchart TB
+    subgraph Network["Docker Network (fabricore)"]
+        direction LR
+
+        subgraph Sims["Rust Machine Simulators"]
+            M1["machine-1 (M1)\nRust simulator"]
+            M2["machine-2 (M2)\nRust simulator"]
+            M3["machine-3 (M3)\nRust simulator"]
+            M4["machine-4 (M4)\nRust simulator"]
+        end
+
+        API[".NET 10 API (Kestrel)\n• gRPC: MachineTelemetry\n• REST: /api/*\n• SSE: /api/factory/events\n• Serves Angular SPA"]
+
+        DB[(PostgreSQL 18)]
+    end
+
+    SPA["Browser\nAngular 21 SPA\n(signals + live sparklines)"]
+
+    M1 & M2 & M3 & M4 <-->|gRPC bidirectional\ntelemetry + commands| API
+    API <--> DB
+
+    API <-->|SSE + REST API| SPA
+
+    classDef rust fill:#f4e8c1,stroke:#b8860b,color:#333
+    class M1,M2,M3,M4 rust
 ```
 
 ### Data Flow Highlights
