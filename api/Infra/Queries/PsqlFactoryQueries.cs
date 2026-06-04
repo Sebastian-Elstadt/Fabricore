@@ -6,7 +6,7 @@ using Infra.RecordStore;
 
 namespace Infra.Queries;
 
-public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueries
+public class PsqlFactoryQueries(ISqlQueryExecutor executor) : IFactoryQueries
 {
     public async Task<FactoryStateSnapshot> GetFactoryStateAsync(CancellationToken ct = default)
     {
@@ -14,14 +14,14 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
         const int TopLatestPartsCount = 10;
 
         var latestParts = (
-            await queryExecutor.QueryManyAsync<LatestPart>(
+            await executor.QueryManyAsync<LatestPart>(
                 "SELECT * FROM parts ORDER BY started_on DESC LIMIT @TopLatestPartsCount",
                 new { TopLatestPartsCount },
                 ct
             )
         ).ToList();
 
-        var machines = (await queryExecutor.QueryManyAsync<MachineRow>(
+        var machines = (await executor.QueryManyAsync<MachineRow>(
             """
             SELECT id, alias, sim_speed::float8 AS sim_speed
             FROM machines
@@ -30,7 +30,7 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
             ct: ct
         )).ToList();
 
-        var telemetry = (await queryExecutor.QueryManyAsync<TelemetryRow>(
+        var telemetry = (await executor.QueryManyAsync<TelemetryRow>(
             """
             SELECT machine_id, status, timestamp, part_id, part_status,
                    temperature::float8    AS temperature,
@@ -48,7 +48,7 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
             ct
         )).ToList();
 
-        var commands = (await queryExecutor.QueryManyAsync<CommandRow>(
+        var commands = (await executor.QueryManyAsync<CommandRow>(
             """
             SELECT id, machine_id, type, created_on, executed_on, parameters::text AS parameters
             FROM (

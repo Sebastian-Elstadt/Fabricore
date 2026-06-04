@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRecordStore>(sp => sp.GetRequiredService<PsqlRecordStore>());
         services.AddScoped<ISqlQueryExecutor>(sp => sp.GetRequiredService<PsqlRecordStore>());
         services.AddScoped<IFactoryQueries, PsqlFactoryQueries>();
+        services.AddScoped<IPartsQueries, PsqlPartQueries>();
         return services;
     }
 }
