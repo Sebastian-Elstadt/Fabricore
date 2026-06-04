@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Api.Controllers;
 
 [ApiController]
-[Route("factory")]
+[Route("api/factory")]
 public class FactoryController(FactoryEventBroadcaster broadcaster, IFactoryQueries queries) : ControllerBase
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()

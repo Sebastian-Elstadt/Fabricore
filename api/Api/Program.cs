@@ -28,4 +28,8 @@ app.MapOpenApi();
 
 app.MapGrpcService<MachineTelemetry>();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.MapFallbackToFile("index.html");
+
 app.Run();

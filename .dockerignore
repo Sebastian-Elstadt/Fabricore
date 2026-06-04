@@ -1,2 +1,20 @@
 .git
 docker-compose.yml
+**/.gitignore
+
+# editor / tooling
+**/.vscode
+**/.editorconfig
+**/.prettierrc
+
+# node (web frontend)
+**/node_modules
+**/dist
+
+# rust (machine)
+**/target
+
+# dotnet (api)
+**/bin
+**/obj
+**/artifacts

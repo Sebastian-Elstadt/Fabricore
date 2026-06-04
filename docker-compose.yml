@@ -56,14 +56,13 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:5000
       RecordStore__ConnectionString: ${POSTGRES_CONNECTION_STRING}
     networks:
       - fabricore
     expose:
       - 50051 # GRPC port exposed within network
     ports:
-      - "127.0.0.1:8001:5000"
+      - "127.0.0.1:8001:5201"
 
   machine-1:
     <<: *machine-base

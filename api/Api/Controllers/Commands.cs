@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Api.Controllers;
 
 [ApiController]
-[Route("commands")]
+[Route("api/commands")]
 public class CommandsController(
     ICommandsService commandsService,
     MachineCommandDispatcher dispatcher,
