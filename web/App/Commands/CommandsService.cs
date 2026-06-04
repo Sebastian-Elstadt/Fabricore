@@ -1,12 +1,15 @@
 using App.Abstractions;
+using Domain.Machines;
 
 namespace App.Commands;
 
 public class CommandsService(IRecordStore recordStore) : ICommandsService
 {
-    public Task LogMachineCommandAsync(LogMachineCommandCommand cmd, CancellationToken ct = default)
+    public async Task<MachineCommand> LogMachineCommandAsync(LogMachineCommandCommand cmd, CancellationToken ct = default)
     {
-        return recordStore.MachineCommandRepository.AddAsync(cmd.ToMachineCommand(), ct);
+        var machineCommand = cmd.ToMachineCommand();
+        await recordStore.MachineCommandRepository.AddAsync(machineCommand, ct);
+        return machineCommand;
     }
 
     public Task MarkCommandExecutedAsync(Guid commandId, CancellationToken ct = default)

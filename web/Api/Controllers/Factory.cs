@@ -18,11 +18,11 @@ public class FactoryController(FactoryEventBroadcaster broadcaster, IFactoryQuer
     };
 
     [HttpGet("state")]
-    public Task<FactoryStateSnapshot> GetState(CancellationToken ct)
+    public Task<FactoryStateSnapshot> GetStateAsync(CancellationToken ct)
         => queries.GetFactoryStateAsync(ct);
 
     [HttpGet("events")]
-    public async Task Events(CancellationToken ct)
+    public async Task EventsAsync(CancellationToken ct)
     {
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
