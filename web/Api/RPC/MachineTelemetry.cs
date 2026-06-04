@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Api.Realtime;
 using App.Abstractions;
-using Domain.Machines;
 using Grpc.Core;
 
 namespace Api.RPC;
@@ -132,9 +131,15 @@ public class MachineTelemetry(
                 )
             );
 
+            if (!Guid.TryParse(cmd.CommandId, out var commandId))
+            {
+                logger.LogWarning($"Sent command with invalid id '{cmd.CommandId}' to {machineId}; skipping executed-on update.");
+                continue;
+            }
+
             await using var scope = scopeFactory.CreateAsyncScope();
             var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
-            await commandsService.LogMachineCommandAsync(new(machineId, MachineCommandTypeName.ToEnum(cmd.CommandType)));
+            await commandsService.MarkCommandExecutedAsync(commandId, ct);
         }
     }
 }

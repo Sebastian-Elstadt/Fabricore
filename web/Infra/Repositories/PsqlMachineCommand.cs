@@ -32,4 +32,20 @@ public class PsqlMachineCommandRepository(ISqlQueryExecutor executor) : IMachine
             ct
         );
     }
+
+    public Task MarkExecutedAsync(Guid id, DateTime executedOn, CancellationToken ct = default)
+    {
+        return executor.ExecuteAsync(
+            """
+            UPDATE machine_commands
+            SET executed_on = @ExecutedOn
+            WHERE id = @Id;
+            """,
+            new {
+                Id = id,
+                ExecutedOn = executedOn
+            },
+            ct
+        );
+    }
 }

@@ -8,4 +8,9 @@ public class CommandsService(IRecordStore recordStore) : ICommandsService
     {
         return recordStore.MachineCommandRepository.AddAsync(cmd.ToMachineCommand(), ct);
     }
+
+    public Task MarkCommandExecutedAsync(Guid commandId, CancellationToken ct = default)
+    {
+        return recordStore.MachineCommandRepository.MarkExecutedAsync(commandId, DateTime.UtcNow, ct);
+    }
 }
