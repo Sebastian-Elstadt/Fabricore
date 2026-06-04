@@ -1,0 +1,186 @@
+@let m = machine();
+@let t = m.latest;
+
+<div class="backdrop" (click)="onClose()"></div>
+
+<aside
+  class="panel"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Controls for machine ' + m.id"
+>
+  <header class="panel-head" [attr.data-status]="status()">
+    <div class="head-id">
+      <span class="eyebrow">Machine Control</span>
+      <div class="title-row">
+        <span class="mid">{{ m.id }}</span>
+        <span class="status-pill" [attr.data-status]="status()">
+          <span class="dot"></span>{{ statusLabel() }}
+        </span>
+      </div>
+      <span class="alias">{{ m.alias ?? 'Unnamed unit' }}</span>
+    </div>
+    <button type="button" class="close" (click)="onClose()" aria-label="Close controls">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" fill="none" />
+      </svg>
+    </button>
+  </header>
+
+  <!-- live summary -->
+  @if (t) {
+    <section class="summary">
+      <div class="sum-cell">
+        <span class="s-label">Part</span>
+        <span class="s-value mono">{{ t.partId ?? '—' }}</span>
+        @if (partStatusLabel(); as ps) {
+          <span class="s-sub">{{ ps }}</span>
+        }
+      </div>
+      <div class="sum-grid">
+        <div class="sum-metric">
+          <span class="s-label">Temp</span>
+          <span class="s-value mono">{{ t.temperature | number: '1.1-1' }}°C</span>
+        </div>
+        <div class="sum-metric">
+          <span class="s-label">Vibration</span>
+          <span class="s-value mono">{{ t.vibration | number: '1.1-1' }} mm/s</span>
+        </div>
+        <div class="sum-metric">
+          <span class="s-label">Spindle</span>
+          <span class="s-value mono">{{ t.spindleLoad | number: '1.0-0' }}%</span>
+        </div>
+        <div class="sum-metric">
+          <span class="s-label">Quality</span>
+          <span class="s-value mono">{{ t.qualityScore | number: '1.0-0' }}</span>
+        </div>
+      </div>
+    </section>
+  } @else {
+    <section class="summary">
+      <span class="s-sub">No telemetry received yet.</span>
+    </section>
+  }
+
+  <!-- commands -->
+  <section class="commands">
+    <h3 class="section-title">Issue Command</h3>
+    <div class="cmd-grid">
+      @for (cmd of availableCommands(); track cmd.id) {
+        <button
+          type="button"
+          class="cmd-btn"
+          [attr.data-severity]="severity(cmd.id)"
+          [class.active]="hasParams(cmd.id) && showAdjust()"
+          [disabled]="busyId() !== null"
+          (click)="onCommandClick(cmd)"
+        >
+          <span class="cmd-icon" aria-hidden="true">
+            @switch (commandCode(cmd.id)) {
+              @case ('PAUSE') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+              }
+              @case ('RESUME') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 5l12 7-12 7z" fill="currentColor"/></svg>
+              }
+              @case ('EMERGENCY_STOP') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+              }
+              @case ('COOL_DOWN') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+              }
+              @case ('ADJUST_SPEED') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+              }
+              @case ('INJECT_DEFECT') {
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l9 16H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 10v4M12 16.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              }
+              @default {
+                <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>
+              }
+            }
+          </span>
+          <span class="cmd-label">{{ cmd.name }}</span>
+          @if (busyId() === cmd.id) {
+            <span class="cmd-spin" aria-hidden="true"></span>
+          } @else if (hasParams(cmd.id)) {
+            <span class="cmd-caret" [class.open]="showAdjust()" aria-hidden="true">▾</span>
+          }
+        </button>
+      }
+    </div>
+
+    <!-- adjust-speed form -->
+    @if (showAdjust() && adjustCommand(); as adj) {
+      <div class="adjust">
+        <div class="field">
+          <div class="field-head">
+            <label [attr.for]="'sim-' + m.id">Sim Speed</label>
+            <span class="field-val mono">×{{ simSpeedInput() | number: '1.1-1' }}</span>
+          </div>
+          <input
+            [id]="'sim-' + m.id"
+            type="range"
+            min="0.1"
+            max="20"
+            step="0.1"
+            [value]="simSpeedInput()"
+            (input)="simSpeedInput.set(+$any($event.target).value)"
+          />
+        </div>
+        <div class="field">
+          <div class="field-head">
+            <label [attr.for]="'load-' + m.id">Spindle Load Target</label>
+            <span class="field-val mono">{{ spindleInput() | number: '1.0-0' }}%</span>
+          </div>
+          <input
+            [id]="'load-' + m.id"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            [value]="spindleInput()"
+            (input)="spindleInput.set(+$any($event.target).value)"
+          />
+        </div>
+        <button
+          type="button"
+          class="apply"
+          [disabled]="busyId() !== null"
+          (click)="submitAdjust(adj)"
+        >
+          Apply Adjustment
+        </button>
+      </div>
+    }
+
+    @if (feedback(); as fb) {
+      <div class="feedback" [attr.data-tone]="fb.tone" role="status">{{ fb.text }}</div>
+    }
+  </section>
+
+  <!-- history -->
+  <section class="history">
+    <h3 class="section-title">
+      Command History
+      <span class="count">{{ m.commands.length }}</span>
+    </h3>
+    @if (m.commands.length) {
+      <ul class="cmd-log">
+        @for (c of m.commands; track c.id) {
+          <li class="log-row">
+            <span class="log-dot" [class.executed]="c.executedOn"></span>
+            <span class="log-name">{{ c.typeName }}</span>
+            <span class="log-time mono">{{ relTime(c.createdOn) }}</span>
+            <span class="log-state" [class.executed]="c.executedOn">
+              {{ c.executedOn ? 'executed' : 'pending' }}
+            </span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="log-empty">No commands issued to this machine yet.</p>
+    }
+  </section>
+</aside>
