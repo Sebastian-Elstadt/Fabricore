@@ -1,3 +1,5 @@
+using Domain.Machines;
+
 namespace App.Factory;
 
 public record FactoryStateSnapshot(
@@ -35,7 +37,21 @@ public record FactoryCommand(
     IReadOnlyDictionary<string, string> Parameters
 );
 
-public record AvailableCommand(
-    short Id,
-    string Name
+public record AvailableCommand
+{
+    public short Id { get; set; }
+    public string Name { get; set; }
+    public IReadOnlyList<AvailableCommandField>? Fields { get; set; } = null;
+
+    public AvailableCommand(MachineCommandType cmdType, IReadOnlyList<AvailableCommandField>? fields = null)
+    {
+        Id = (short)cmdType;
+        Name = cmdType.ToDisplayName();
+        Fields = fields;
+    }
+}
+
+public record AvailableCommandField(
+    string Label,
+    string Key
 );

@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
 use crate::{
-    proto::{CommandMessage, TelemetryMessage},
     config::Config,
+    proto::{CommandMessage, TelemetryMessage},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -37,6 +37,7 @@ pub struct State {
     // part lifecycle
     pub part_phase: PartPhase,
     pub current_part_id: Option<String>,
+    pub pending_part_id: Option<String>,
     pub part_quarantined: bool,
     pub part_started: Option<Instant>,
     pub cycle_time_sec: f32,
@@ -65,6 +66,7 @@ impl State {
             load_target: 55.0,
             part_phase: PartPhase::Idle,
             current_part_id: None,
+            pending_part_id: None,
             part_quarantined: false,
             part_started: None,
             cycle_time_sec: 0.0,
@@ -141,14 +143,6 @@ impl State {
         self.last_command = Some(cmd.command_id.clone());
         let cmd_type = cmd.command_type.to_uppercase();
 
-        // for "child machines", they will receive their next part to process from the server
-        if let Some(part_id) = cmd.parameters.get("part_id")
-            && !part_id.is_empty()
-        {
-            self.current_part_id = Some(part_id.clone());
-            info!(target: "cmd", "📦 assigned part {part_id}");
-        }
-
         match cmd_type.as_str() {
             "PAUSE" => {
                 self.run_state = RunState::Paused;
@@ -162,6 +156,8 @@ impl State {
                 self.run_state = RunState::Stopped;
                 self.overheat_until = None;
                 self.cooldown_until = Some(now + Duration::from_secs(15));
+                self.current_part_id = None;
+                self.pending_part_id = None;
                 error!(target: "cmd", "🛑 EMERGENCY_STOP — rapid cool-down");
             }
             "COOL_DOWN" => {
@@ -203,6 +199,21 @@ impl State {
                 }
 
                 error!(target: "cmd", "💥 INJECT_DEFECT — quality dropped to {:.0}", self.quality_score);
+            }
+            "ASSIGN_PART" => {
+                info!(target: "cmd", "📥 ASSIGN_PART received");
+
+                if let Some(part_id) = cmd.parameters.get("part_id")
+                    && !part_id.is_empty()
+                {
+                    if self.part_phase == PartPhase::InProgress {
+                        self.pending_part_id = Some(part_id.clone());
+                        info!(target: "cmd", "📦 assigned part {part_id} (pending)");
+                    } else {
+                        self.current_part_id = Some(part_id.clone());
+                        info!(target: "cmd", "📦 assigned part {part_id} (current)");
+                    }
+                }
             }
             unknown => warn!(target: "cmd", "❓ unknown command type: {unknown}"),
         }

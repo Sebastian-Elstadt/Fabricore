@@ -100,9 +100,17 @@ public class PsqlFactoryQueries(ISqlQueryExecutor queryExecutor) : IFactoryQueri
     }
 
     private static IReadOnlyList<AvailableCommand> BuildAvailableCommands()
-        => Enum.GetValues<MachineCommandType>()
-            .Select(t => new AvailableCommand((short)t, t.ToDisplayName()))
-            .ToList();
+        => new List<AvailableCommand>([
+            new(MachineCommandType.Resume),
+            new(MachineCommandType.Pause),
+            new(MachineCommandType.CoolDown),
+            new(MachineCommandType.EmergencyStop),
+            new(MachineCommandType.InjectSimDefect),
+            new(MachineCommandType.AdjustSimSpeed, new List<AvailableCommandField>([
+                new("Sim Speed", "sim_speed"),
+                new("Spindle Load", "spindle_load")
+            ]))
+        ]);
 
     private sealed record MachineRow(string Id, string? Alias, double SimSpeed);
 

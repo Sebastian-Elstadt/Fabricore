@@ -16,14 +16,17 @@ impl State {
         match self.part_phase {
             PartPhase::Idle => {
                 if self.current_part_id.is_none() {
-                    if !cfg.is_source_machine() {
+                    if let Some(p) = self.pending_part_id.take() {
+                        self.current_part_id = Some(p.clone());
+                        info!(target: "part", "🟢 accepted assigned part: {p}");
+                    } else if cfg.is_source_machine() {
+                        self.part_counter += 1;
+                        let part_id = format!("PART-{:04}", 1000 + self.part_counter);
+                        info!(target: "part", "🟢 new part spawned: {part_id}");
+                        self.current_part_id = Some(part_id);
+                    } else {
                         return;
                     }
-
-                    self.part_counter += 1;
-                    let part_id = format!("PART-{:04}", 1000 + self.part_counter);
-                    info!(target: "part", "🟢 new part spawned: {part_id}");
-                    self.current_part_id = Some(part_id);
                 }
 
                 self.part_phase = PartPhase::InProgress;

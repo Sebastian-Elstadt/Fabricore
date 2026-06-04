@@ -31,6 +31,12 @@ public class FactoryController(FactoryEventBroadcaster broadcaster, IFactoryQuer
 
         var (id, reader) = broadcaster.Register();
 
+        // Flush headers + a comment line immediately so subscribers transition to
+        // "open" as soon as the stream is established, rather than only once the
+        // first event happens to be written.
+        await Response.WriteAsync(": connected\n\n", ct);
+        await Response.Body.FlushAsync(ct);
+
         try
         {
             await foreach (var evt in reader.ReadAllAsync(ct))

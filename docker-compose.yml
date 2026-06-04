@@ -62,7 +62,7 @@ services:
     expose:
       - 50051 # GRPC port exposed within network
     ports:
-      - "127.0.0.1:8001:5201"
+      - "127.0.0.1:8000:8080"
 
   machine-1:
     <<: *machine-base

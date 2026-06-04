@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
 using Api.Realtime;
 using App.Abstractions;
+using App.Commands;
+using Domain.Machines;
 using Grpc.Core;
 
 namespace Api.RPC;
@@ -14,6 +17,7 @@ public class MachineTelemetry(
 ) : Proto.MachineTelemetry.MachineTelemetryBase
 {
     private const int TelemetryBatchSize = 5;
+    private readonly ConcurrentDictionary<string, DateTime> partHandoffs = new();
 
     public override async Task TelemetryStream(
         IAsyncStreamReader<Proto.TelemetryMessage> readStream,
@@ -87,6 +91,11 @@ public class MachineTelemetry(
                     )
                 );
 
+                if (msg.CurrentPartStatus == "completed" && !string.IsNullOrWhiteSpace(msg.PartId))
+                {
+                    await TryHandoffPartAsync(msg.MachineId, msg.PartId, ct);
+                }
+
                 if (buffer.Count >= TelemetryBatchSize)
                 {
                     await StorePacketsAsync(buffer, ct);
@@ -140,6 +149,78 @@ public class MachineTelemetry(
             await using var scope = scopeFactory.CreateAsyncScope();
             var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
             await commandsService.MarkCommandExecutedAsync(commandId, ct);
+        }
+    }
+
+    private string? GetSuccessorMachine(string machineId)
+    {
+        if (
+            machineId.StartsWith("M", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(machineId.AsSpan(1), out var n) &&
+            n >= 1 && n < 4
+        ) return $"M{n + 1}";
+        return null;
+    }
+
+    private async Task TryHandoffPartAsync(string fromMachineId, string partId, CancellationToken ct)
+    {
+        string key = $"{partId}|{fromMachineId}";
+        var now = DateTime.UtcNow;
+
+        if (partHandoffs.Count > 2000)
+        {
+            foreach (var (k, ts) in partHandoffs.ToArray())
+            {
+                if ((now - ts).TotalMinutes > 60)
+                    partHandoffs.TryRemove(k, out _);
+            }
+        }
+
+        if (!partHandoffs.TryAdd(key, now)) return; // already handed off
+
+        // for now, this is a very simple setup on the server's side.
+        // next I want to track the parts here as they move until we hit the last machine,
+        // then I want to write an audit trail of the part to the record store.
+        var toMachineId = GetSuccessorMachine(fromMachineId);
+        if (toMachineId is null)
+        {
+            logger.LogInformation($"Part {partId} completed final stage on {fromMachineId}");
+            return;
+        }
+
+        logger.LogInformation($"Part handoff: {partId} completed on {fromMachineId} → dispatching ASSIGN_PART to {toMachineId}");
+
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
+
+            var cmd = await commandsService.LogMachineCommandAsync(
+                new LogMachineCommandCommand(
+                    toMachineId,
+                    MachineCommandType.AssignPart,
+                    new Dictionary<string, string> { ["part_id"] = partId }
+                ),
+                ct
+            );
+
+            var message = new Proto.CommandMessage
+            {
+                CommandId = cmd.Id.ToString(),
+                CommandType = cmd.Type.ToCode(),
+                TimestampMs = new DateTimeOffset(cmd.CreatedOn, TimeSpan.Zero).ToUnixTimeMilliseconds()
+            };
+
+            message.Parameters.Add("part_id", partId);
+
+            var dispatched = dispatcher.TryDispatch(toMachineId, message);
+            if (!dispatched)
+                logger.LogWarning($"Handoff ASSIGN_PART for {partId} to {toMachineId} was logged but {toMachineId} is not currently connected.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Failed to perform part handoff for {partId} from {fromMachineId}");
+            partHandoffs.TryRemove(key, out _);
         }
     }
 }
