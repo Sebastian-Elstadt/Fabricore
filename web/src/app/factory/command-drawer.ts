@@ -11,12 +11,8 @@ import {
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 
-import { AvailableCommand, Machine } from './factory.models';
-import {
-  COMMAND_META,
-  PART_STATUS_LABEL,
-  STATUS_LABEL,
-} from './factory.constants';
+import { AvailableCommand, CommandField, Machine } from './factory.models';
+import { COMMAND_META, PART_STATUS_LABEL, STATUS_LABEL } from './factory.constants';
 import { FactoryService } from './factory.service';
 import { ClockService, relativeTime } from './clock.service';
 
@@ -42,10 +38,11 @@ export class CommandDrawer {
 
   protected readonly busyId = signal<number | null>(null);
   protected readonly feedback = signal<Feedback | null>(null);
-  protected readonly showAdjust = signal(false);
 
-  protected readonly simSpeedInput = signal(1);
-  protected readonly spindleInput = signal(55);
+  /** Which parameterised command currently has its field form expanded. */
+  protected readonly openCmdId = signal<number | null>(null);
+  /** Live values entered into the expanded form, keyed by field key. */
+  protected readonly fieldValues = signal<Record<string, string>>({});
 
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -56,11 +53,10 @@ export class CommandDrawer {
       const m = this.machine();
       if (m.id === lastId) return;
       lastId = m.id;
-      this.showAdjust.set(false);
+      this.openCmdId.set(null);
+      this.fieldValues.set({});
       this.feedback.set(null);
       this.busyId.set(null);
-      this.simSpeedInput.set(round(m.simSpeed, 1));
-      this.spindleInput.set(Math.round(m.latest?.spindleLoad ?? 55));
     });
   }
 
@@ -72,16 +68,17 @@ export class CommandDrawer {
     return ps ? (PART_STATUS_LABEL[ps] ?? ps) : null;
   });
 
-  protected readonly adjustCommand = computed(
-    () => this.availableCommands().find((c) => this.hasParams(c.id)) ?? null,
+  /** The parameterised command whose field form is currently expanded. */
+  protected readonly openCommand = computed(
+    () => this.availableCommands().find((c) => c.id === this.openCmdId()) ?? null,
   );
 
   protected severity(id: number): string {
     return COMMAND_META[id]?.severity ?? 'info';
   }
 
-  protected hasParams(id: number): boolean {
-    return COMMAND_META[id]?.hasParams ?? false;
+  protected hasFields(cmd: AvailableCommand): boolean {
+    return cmd.fields.length > 0;
   }
 
   protected commandCode(id: number): string {
@@ -93,18 +90,53 @@ export class CommandDrawer {
   }
 
   protected onCommandClick(cmd: AvailableCommand): void {
-    if (this.hasParams(cmd.id)) {
-      this.showAdjust.update((v) => !v);
+    if (this.hasFields(cmd)) {
+      this.toggleForm(cmd);
       return;
     }
     void this.dispatch(cmd.id, cmd.name);
   }
 
-  protected submitAdjust(cmd: AvailableCommand): void {
-    const params = {
-      sim_speed: clamp(this.simSpeedInput(), 0.1, 20).toString(),
-      spindle_load: clamp(this.spindleInput(), 0, 100).toString(),
-    };
+  private toggleForm(cmd: AvailableCommand): void {
+    if (this.openCmdId() === cmd.id) {
+      this.openCmdId.set(null);
+      return;
+    }
+    // Seed the form with sensible defaults drawn from live machine state.
+    const seed: Record<string, string> = {};
+    for (const f of cmd.fields) seed[f.key] = this.defaultFor(f.key);
+    this.fieldValues.set(seed);
+    this.openCmdId.set(cmd.id);
+  }
+
+  /** Best-effort prefill for known field keys; blank for anything unfamiliar. */
+  private defaultFor(key: string): string {
+    const m = this.machine();
+    switch (key) {
+      case 'sim_speed':
+        return round(m.simSpeed, 1).toString();
+      case 'spindle_load':
+        return Math.round(m.latest?.spindleLoad ?? 55).toString();
+      default:
+        return '';
+    }
+  }
+
+  protected fieldValue(key: string): string {
+    return this.fieldValues()[key] ?? '';
+  }
+
+  protected setField(key: string, value: string): void {
+    this.fieldValues.update((v) => ({ ...v, [key]: value }));
+  }
+
+  protected canSubmit(cmd: AvailableCommand): boolean {
+    return cmd.fields.every((f) => this.fieldValue(f.key).trim() !== '');
+  }
+
+  protected submitFields(cmd: AvailableCommand): void {
+    const params: Record<string, string> = {};
+    for (const f of cmd.fields) params[f.key] = this.fieldValue(f.key).trim();
     void this.dispatch(cmd.id, cmd.name, params);
   }
 
@@ -122,6 +154,7 @@ export class CommandDrawer {
           ? { text: `${label} dispatched to ${this.machine().id}.`, tone: 'ok' }
           : { text: `${label} queued — ${this.machine().id} is offline.`, tone: 'queued' },
       );
+      if (params) this.openCmdId.set(null);
     } catch {
       this.setFeedback({ text: `Failed to send ${label}.`, tone: 'error' });
     } finally {
@@ -143,11 +176,10 @@ export class CommandDrawer {
   protected onClose(): void {
     this.close.emit();
   }
-}
 
-function clamp(n: number, lo: number, hi: number): number {
-  if (!Number.isFinite(n)) return lo;
-  return Math.min(hi, Math.max(lo, n));
+  protected trackField(_: number, field: CommandField): string {
+    return field.key;
+  }
 }
 
 function round(n: number, digits: number): number {

@@ -72,7 +72,7 @@
           type="button"
           class="cmd-btn"
           [attr.data-severity]="severity(cmd.id)"
-          [class.active]="hasParams(cmd.id) && showAdjust()"
+          [class.active]="openCmdId() === cmd.id"
           [disabled]="busyId() !== null"
           (click)="onCommandClick(cmd)"
         >
@@ -104,55 +104,42 @@
           <span class="cmd-label">{{ cmd.name }}</span>
           @if (busyId() === cmd.id) {
             <span class="cmd-spin" aria-hidden="true"></span>
-          } @else if (hasParams(cmd.id)) {
-            <span class="cmd-caret" [class.open]="showAdjust()" aria-hidden="true">▾</span>
+          } @else if (hasFields(cmd)) {
+            <span class="cmd-caret" [class.open]="openCmdId() === cmd.id" aria-hidden="true">▾</span>
           }
         </button>
       }
     </div>
 
-    <!-- adjust-speed form -->
-    @if (showAdjust() && adjustCommand(); as adj) {
-      <div class="adjust">
-        <div class="field">
-          <div class="field-head">
-            <label [attr.for]="'sim-' + m.id">Sim Speed</label>
-            <span class="field-val mono">×{{ simSpeedInput() | number: '1.1-1' }}</span>
+    <!-- dynamic parameter form, driven by the command's declared fields -->
+    @if (openCommand(); as adj) {
+      <form class="adjust" (submit)="$event.preventDefault(); submitFields(adj)">
+        <span class="adjust-title">{{ adj.name }} parameters</span>
+        @for (field of adj.fields; track trackField($index, field)) {
+          <div class="field">
+            <label class="field-label" [attr.for]="'fld-' + m.id + '-' + field.key">
+              {{ field.label }}
+            </label>
+            <input
+              class="field-input mono"
+              [id]="'fld-' + m.id + '-' + field.key"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              [attr.placeholder]="field.key"
+              [value]="fieldValue(field.key)"
+              (input)="setField(field.key, $any($event.target).value)"
+            />
           </div>
-          <input
-            [id]="'sim-' + m.id"
-            type="range"
-            min="0.1"
-            max="20"
-            step="0.1"
-            [value]="simSpeedInput()"
-            (input)="simSpeedInput.set(+$any($event.target).value)"
-          />
-        </div>
-        <div class="field">
-          <div class="field-head">
-            <label [attr.for]="'load-' + m.id">Spindle Load Target</label>
-            <span class="field-val mono">{{ spindleInput() | number: '1.0-0' }}%</span>
-          </div>
-          <input
-            [id]="'load-' + m.id"
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            [value]="spindleInput()"
-            (input)="spindleInput.set(+$any($event.target).value)"
-          />
-        </div>
+        }
         <button
-          type="button"
+          type="submit"
           class="apply"
-          [disabled]="busyId() !== null"
-          (click)="submitAdjust(adj)"
+          [disabled]="busyId() !== null || !canSubmit(adj)"
         >
-          Apply Adjustment
+          Send {{ adj.name }}
         </button>
-      </div>
+      </form>
     }
 
     @if (feedback(); as fb) {

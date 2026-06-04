@@ -1,0 +1,100 @@
+<section class="parts" aria-label="Production log">
+  <header class="parts-head">
+    <div class="title-block">
+      <h2>Production Log</h2>
+      <span class="sub">Parts traced through the line</span>
+    </div>
+    <span class="counter" aria-label="Completed parts">
+      <span class="num">{{ producedCount() }}</span>
+      <span class="cap">done</span>
+    </span>
+  </header>
+
+  @if (parts().length) {
+    <ul class="part-list">
+      @for (p of parts(); track p.id) {
+        <li class="part" [class.open]="isExpanded(p.id)" [class.done]="p.finishedOn">
+          <button
+            type="button"
+            class="part-row"
+            [attr.aria-expanded]="isExpanded(p.id)"
+            (click)="toggle(p)"
+          >
+            <span class="state-dot" [class.done]="p.finishedOn"></span>
+            <span class="p-id mono">{{ p.id }}</span>
+
+            <span class="stages" aria-hidden="true">
+              @for (s of stages(); track s) {
+                <span class="stage" [class.reached]="reached(p, s)"></span>
+              }
+            </span>
+
+            <span class="p-status" [class.done]="p.finishedOn">
+              {{ partStatusLabel(p) }}
+            </span>
+            <span class="p-time mono">{{ relStarted(p) }}</span>
+            <span class="caret" [class.open]="isExpanded(p.id)" aria-hidden="true">▾</span>
+          </button>
+
+          @if (isExpanded(p.id)) {
+            <div class="logs">
+              @if (logStateFor(p.id); as st) {
+                @switch (st.status) {
+                  @case ('loading') {
+                    <div class="log-msg">
+                      <span class="spinner" aria-hidden="true"></span>
+                      Loading logs…
+                    </div>
+                  }
+                  @case ('error') {
+                    <div class="log-msg error">
+                      Couldn't load logs.
+                      <button type="button" class="retry" (click)="retry(p.id)">Retry</button>
+                    </div>
+                  }
+                  @case ('ready') {
+                    @if (st.logs.length) {
+                      <ol class="log-trail">
+                        @for (l of st.logs; track $index) {
+                          <li class="trail-row" [attr.data-status]="l.status">
+                            <span class="trail-node" aria-hidden="true"></span>
+                            <div class="trail-main">
+                              <div class="trail-top">
+                                <span class="mach mono">{{ l.machineId }}</span>
+                                <span class="badge">{{ statusLabel(l.status) }}</span>
+                                @if (l.partStatus) {
+                                  <span class="badge ps" [attr.data-ps]="l.partStatus">
+                                    {{ logPartStatus(l.partStatus) }}
+                                  </span>
+                                }
+                                <span class="trail-time mono">{{ relLog(l.timestamp) }}</span>
+                              </div>
+                              <div class="trail-metrics mono">
+                                <span>{{ l.temperature | number: '1.0-0' }}°C</span>
+                                <span>vib {{ l.vibration | number: '1.1-1' }}</span>
+                                <span>load {{ l.spindleLoad | number: '1.0-0' }}%</span>
+                                <span class="q">Q {{ l.qualityScore | number: '1.0-0' }}</span>
+                              </div>
+                            </div>
+                          </li>
+                        }
+                      </ol>
+                    } @else {
+                      <div class="log-msg">No telemetry recorded for this part yet.</div>
+                    }
+                  }
+                }
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  } @else {
+    <div class="parts-empty">
+      <span class="empty-icon" aria-hidden="true">◍</span>
+      <span>No parts tracked yet.</span>
+      <span class="empty-sub">Parts appear here as the line produces them.</span>
+    </div>
+  }
+</section>

@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { API_BASE, CODE_TO_LABEL, normalizeStatus } from './factory.constants';
 import {
   AvailableCommand,
+  AvailableCommandDto,
   CommandDto,
   CommandEventDto,
   CommandLogEntry,
@@ -13,7 +14,13 @@ import {
   FactoryEventDto,
   FactoryMachineDto,
   FactoryStateSnapshotDto,
+  LatestPartDto,
   Machine,
+  Part,
+  PartFlow,
+  PartLog,
+  PartLogDto,
+  PartProducedEventDto,
   Telemetry,
   TelemetryDto,
   TelemetryEventDto,
@@ -21,6 +28,9 @@ import {
 
 const HISTORY_LIMIT = 48;
 const COMMAND_LOG_LIMIT = 25;
+const PARTS_LIMIT = 40;
+/** How long a travelling-part chip animates along a conveyor before it is pruned. */
+const FLOW_DURATION_MS = 1500;
 
 /**
  * Owns the client-side mirror of factory state. On {@link connect} it pulls a
@@ -34,11 +44,15 @@ export class FactoryService implements OnDestroy {
 
   private readonly _machines = signal<Machine[]>([]);
   private readonly _availableCommands = signal<AvailableCommand[]>([]);
+  private readonly _parts = signal<Part[]>([]);
+  private readonly _flows = signal<PartFlow[]>([]);
   private readonly _connection = signal<ConnectionStatus>('connecting');
   private readonly _lastError = signal<string | null>(null);
 
   readonly machines = this._machines.asReadonly();
   readonly availableCommands = this._availableCommands.asReadonly();
+  readonly parts = this._parts.asReadonly();
+  readonly flows = this._flows.asReadonly();
   readonly connection = this._connection.asReadonly();
   readonly lastError = this._lastError.asReadonly();
 
@@ -47,6 +61,8 @@ export class FactoryService implements OnDestroy {
   private eventSource: EventSource | null = null;
   private hasConnected = false;
   private started = false;
+  private flowSeq = 0;
+  private readonly flowTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /** Idempotent entry point: fetch the snapshot, then open the live stream. */
   async connect(): Promise<void> {
@@ -60,6 +76,8 @@ export class FactoryService implements OnDestroy {
   ngOnDestroy(): void {
     this.eventSource?.close();
     this.eventSource = null;
+    for (const t of this.flowTimers) clearTimeout(t);
+    this.flowTimers.clear();
   }
 
   // --- snapshot ----------------------------------------------------------
@@ -70,9 +88,8 @@ export class FactoryService implements OnDestroy {
         this.http.get<FactoryStateSnapshotDto>(`${API_BASE}/api/factory/state`),
       );
       this._machines.set(snapshot.Machines.map(toMachine));
-      this._availableCommands.set(
-        snapshot.AvailableCommands.map((c) => ({ id: c.Id, name: c.Name })),
-      );
+      this._availableCommands.set((snapshot.AvailableCommands ?? []).map(toAvailableCommand));
+      this._parts.set((snapshot.LatestParts ?? []).map(toPart).slice(0, PARTS_LIMIT));
       this._lastError.set(null);
     } catch {
       this._lastError.set('Unable to load factory state.');
@@ -110,6 +127,11 @@ export class FactoryService implements OnDestroy {
       if (evt?.Command) this.applyCommand(evt.Command);
     });
 
+    es.addEventListener('PartProduced', (e) => {
+      const evt = parse<FactoryEventDto>((e as MessageEvent).data);
+      if (evt?.PartProduced) this.applyPartProduced(evt.PartProduced);
+    });
+
     es.onerror = () => {
       // EventSource reconnects on its own; just reflect the gap in the UI.
       this._connection.set('reconnecting');
@@ -118,12 +140,21 @@ export class FactoryService implements OnDestroy {
 
   private applyTelemetry(evt: TelemetryEventDto): void {
     const telemetry = toTelemetry(evt);
+    const idx = this._machines().findIndex((m) => m.id === evt.MachineId);
+    const prevPartId = idx >= 0 ? (this._machines()[idx].latest?.partId ?? null) : null;
+
     this.updateMachine(evt.MachineId, (m) => ({
       ...m,
       latest: telemetry,
       tempHistory: pushCapped(m.tempHistory, telemetry.temperature),
       qualityHistory: pushCapped(m.qualityHistory, telemetry.qualityScore),
     }));
+
+    // A machine reporting a part it wasn't holding a moment ago means the part
+    // just arrived — animate it travelling in and track it on the parts panel.
+    if (idx >= 0 && telemetry.partId && telemetry.partId !== prevPartId) {
+      this.onPartArrived(idx, telemetry.partId, telemetry.timestamp);
+    }
   }
 
   private applyCommand(evt: CommandEventDto): void {
@@ -141,6 +172,58 @@ export class FactoryService implements OnDestroy {
     }));
   }
 
+  private applyPartProduced(evt: PartProducedEventDto): void {
+    const lastIndex = Math.max(0, this._machines().length - 1);
+    this.upsertPart({
+      id: evt.PartId,
+      startedOn: evt.StartedOn,
+      finishedOn: evt.FinishedOn,
+      lastMachineIndex: lastIndex,
+    });
+    // Chip leaves the final machine for the finished-goods output.
+    this.pushFlow(this._machines().length, evt.PartId, 'output');
+  }
+
+  // --- part flow + tracking ---------------------------------------------
+
+  private onPartArrived(machineIndex: number, partId: string, timestamp: string): void {
+    const existing = this._parts().find((p) => p.id === partId);
+    this.upsertPart({
+      id: partId,
+      startedOn: existing?.startedOn ?? timestamp,
+      finishedOn: existing?.finishedOn ?? null,
+      lastMachineIndex: machineIndex,
+    });
+    // conveyor 0 is the intake before machine 0; otherwise the segment that
+    // bridges the upstream machine to this one shares this machine's index.
+    this.pushFlow(machineIndex, partId, machineIndex === 0 ? 'intake' : 'transfer');
+  }
+
+  private upsertPart(part: Part): void {
+    this._parts.update((parts) => {
+      const idx = parts.findIndex((p) => p.id === part.id);
+      if (idx === -1) return [part, ...parts].slice(0, PARTS_LIMIT);
+      const next = parts.slice();
+      next[idx] = {
+        ...next[idx],
+        // Never lose a known finish time or regress a tracked position.
+        finishedOn: part.finishedOn ?? next[idx].finishedOn,
+        lastMachineIndex: part.lastMachineIndex ?? next[idx].lastMachineIndex,
+      };
+      return next;
+    });
+  }
+
+  private pushFlow(conveyorIndex: number, partId: string, kind: PartFlow['kind']): void {
+    const id = `flow-${this.flowSeq++}`;
+    this._flows.update((flows) => [...flows, { id, conveyorIndex, partId, kind }]);
+    const timer = setTimeout(() => {
+      this._flows.update((flows) => flows.filter((f) => f.id !== id));
+      this.flowTimers.delete(timer);
+    }, FLOW_DURATION_MS);
+    this.flowTimers.add(timer);
+  }
+
   // --- commands ----------------------------------------------------------
 
   async sendCommand(
@@ -152,6 +235,13 @@ export class FactoryService implements OnDestroy {
     return firstValueFrom(
       this.http.post<CreateCommandResponseDto>(`${API_BASE}/api/commands`, body),
     );
+  }
+
+  async getPartLogs(partId: string): Promise<PartLog[]> {
+    const logs = await firstValueFrom(
+      this.http.get<PartLogDto[]>(`${API_BASE}/api/parts/${encodeURIComponent(partId)}/logs`),
+    );
+    return (logs ?? []).map(toPartLog);
   }
 
   // --- helpers -----------------------------------------------------------
@@ -190,6 +280,37 @@ function toCommandEntry(dto: CommandDto): CommandLogEntry {
     createdOn: dto.CreatedOn,
     executedOn: dto.ExecutedOn,
     parameters: dto.Parameters ?? {},
+  };
+}
+
+function toAvailableCommand(dto: AvailableCommandDto): AvailableCommand {
+  return {
+    id: dto.Id,
+    name: dto.Name,
+    fields: (dto.Fields ?? []).map((f) => ({ label: f.Label, key: f.Key })),
+  };
+}
+
+function toPart(dto: LatestPartDto): Part {
+  return {
+    id: dto.Id,
+    startedOn: dto.StartedOn,
+    finishedOn: emptyToNull(dto.FinishedOn),
+    lastMachineIndex: null,
+  };
+}
+
+function toPartLog(dto: PartLogDto): PartLog {
+  return {
+    machineId: dto.MachineId,
+    timestamp: dto.Timestamp,
+    status: normalizeStatus(dto.Status),
+    partStatus: emptyToNull(dto.PartStatus),
+    temperature: dto.Temperature,
+    vibration: dto.Vibration,
+    spindleLoad: dto.SpindleLoad,
+    cycleTimeSec: dto.CycleTimeSec,
+    qualityScore: dto.QualityScore,
   };
 }
 

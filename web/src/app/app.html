@@ -55,14 +55,21 @@
 
   <main class="board">
     @if (machines().length) {
-      <div class="grid">
-        @for (m of machines(); track m.id) {
-          <app-machine-card
-            [machine]="m"
-            [selected]="selectedMachine()?.id === m.id"
+      <div class="workspace">
+        <section class="floor-panel" aria-label="Factory floor">
+          <div class="floor-head">
+            <h2>Production Line</h2>
+            <span class="floor-sub">Live part flow · {{ machines().length }} stations</span>
+          </div>
+          <app-factory-floor
+            [machines]="machines()"
+            [flows]="flows()"
+            [selectedId]="selectedId()"
             (select)="onSelect($event)"
           />
-        }
+        </section>
+
+        <app-parts-panel [parts]="parts()" [stageCount]="machines().length" />
       </div>
     } @else if (connection() === 'offline') {
       <div class="state-msg">

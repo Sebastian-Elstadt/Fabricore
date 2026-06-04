@@ -7,6 +7,13 @@
 export interface FactoryStateSnapshotDto {
   Machines: FactoryMachineDto[];
   AvailableCommands: AvailableCommandDto[];
+  LatestParts: LatestPartDto[];
+}
+
+export interface LatestPartDto {
+  Id: string;
+  StartedOn: string;
+  FinishedOn: string | null;
 }
 
 export interface FactoryMachineDto {
@@ -42,15 +49,36 @@ export interface CommandDto {
 export interface AvailableCommandDto {
   Id: number;
   Name: string;
+  /** Extra parameters the operator must supply for this command, when present. */
+  Fields?: AvailableCommandFieldDto[] | null;
+}
+
+export interface AvailableCommandFieldDto {
+  Label: string;
+  Key: string;
+}
+
+/** Per-machine telemetry row returned by `/api/parts/{id}/logs`. */
+export interface PartLogDto {
+  MachineId: string;
+  Timestamp: string;
+  Status: string;
+  PartStatus: string | null;
+  Temperature: number;
+  Vibration: number;
+  SpindleLoad: number;
+  CycleTimeSec: number;
+  QualityScore: number;
 }
 
 /** Envelope pushed over the SSE `/api/factory/events` stream. */
 export interface FactoryEventDto {
-  Type: 'Telemetry' | 'Command';
+  Type: 'Telemetry' | 'Command' | 'PartProduced';
   MachineId: string;
   Timestamp: string;
   Telemetry?: TelemetryEventDto;
   Command?: CommandEventDto;
+  PartProduced?: PartProducedEventDto;
 }
 
 export interface TelemetryEventDto {
@@ -72,6 +100,14 @@ export interface CommandEventDto {
   CommandType: string;
   Parameters: Record<string, string>;
   Timestamp: string;
+}
+
+export interface PartProducedEventDto {
+  MachineId: string;
+  Timestamp: string;
+  PartId: string;
+  StartedOn: string;
+  FinishedOn: string;
 }
 
 export interface CreateCommandResponseDto {
@@ -124,9 +160,50 @@ export interface Machine {
   qualityHistory: number[];
 }
 
+export interface CommandField {
+  label: string;
+  key: string;
+}
+
 export interface AvailableCommand {
   id: number;
   name: string;
+  /** Operator-supplied parameters; empty when the command takes none. */
+  fields: CommandField[];
+}
+
+/** A part tracked on the production-log side panel. */
+export interface Part {
+  id: string;
+  startedOn: string;
+  finishedOn: string | null;
+  /** Index of the machine that last reported this part (0-based), if known. */
+  lastMachineIndex: number | null;
+}
+
+export interface PartLog {
+  machineId: string;
+  timestamp: string;
+  status: MachineStatus;
+  partStatus: string | null;
+  temperature: number;
+  vibration: number;
+  spindleLoad: number;
+  cycleTimeSec: number;
+  qualityScore: number;
+}
+
+/**
+ * A transient animation of a part travelling along the line. `conveyorIndex`
+ * addresses the conveyor segments rendered on the floor: 0 is the raw-stock
+ * intake feeding machine 0, 1..N-1 sit between consecutive machines, and N is
+ * the finished-goods output after the last machine.
+ */
+export interface PartFlow {
+  id: string;
+  conveyorIndex: number;
+  partId: string;
+  kind: 'intake' | 'transfer' | 'output';
 }
 
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';

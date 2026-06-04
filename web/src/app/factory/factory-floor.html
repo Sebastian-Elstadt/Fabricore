@@ -1,0 +1,151 @@
+<div class="floor-wrap">
+  <div class="floor" role="list" aria-label="Production line">
+    @for (node of nodes(); track $index) {
+      @switch (node.kind) {
+        <!-- raw-stock intake -->
+        @case ('intake') {
+          <div class="endcap intake" role="listitem">
+            <span class="endcap-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M3 7l9-4 9 4-9 4-9-4z" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linejoin="round" />
+                <path d="M3 7v10l9 4 9-4V7" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linejoin="round" />
+                <path d="M12 11v10" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </span>
+            <span class="endcap-label">Raw Stock</span>
+            <span class="endcap-sub">Intake</span>
+          </div>
+        }
+
+        <!-- finished-goods output -->
+        @case ('output') {
+          <div class="endcap output" role="listitem">
+            <span class="endcap-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" fill="none"
+                  stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                <path d="M3 5h18v3H3z" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linejoin="round" />
+                <path d="M9.5 12h5" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" />
+              </svg>
+            </span>
+            <span class="endcap-label">Finished</span>
+            <span class="endcap-sub">Output</span>
+          </div>
+        }
+
+        <!-- conveyor segment, carries travelling part chips -->
+        @case ('conveyor') {
+          <div class="conveyor" role="listitem" aria-hidden="true">
+            <span class="belt"></span>
+            <span class="belt-arrow">›</span>
+            @for (f of flowsFor(node.index); track f.id) {
+              <span class="chip flying" [attr.data-kind]="f.kind">
+                {{ shortPart(f.partId) }}
+              </span>
+            }
+          </div>
+        }
+
+        <!-- machine station -->
+        @case ('station') {
+          @let m = node.machine;
+          @let t = m.latest;
+          <article
+            class="station"
+            role="listitem"
+            tabindex="0"
+            [class.selected]="selectedId() === m.id"
+            [class.live]="isActive(m)"
+            [attr.data-status]="status(m)"
+            [attr.aria-label]="'Open controls for machine ' + m.id"
+            (click)="onSelect(m.id)"
+            (keydown)="onKey($event, m.id)"
+          >
+            <header class="st-head">
+              <div class="st-id">
+                <span class="mid">{{ m.id }}</span>
+                <span class="alias">{{ m.alias ?? 'Unit ' + (node.index + 1) }}</span>
+              </div>
+              <span class="status-pill" [attr.data-status]="status(m)">
+                <span class="dot"></span>{{ statusLabel(m) }}
+              </span>
+            </header>
+
+            <!-- stylised machine body -->
+            <div class="machine-art" [class.running]="isActive(m)" aria-hidden="true">
+              <svg viewBox="0 0 120 64" width="100%" height="64" preserveAspectRatio="xMidYMid meet">
+                <rect x="6" y="20" width="108" height="34" rx="6" class="body" />
+                <rect x="14" y="28" width="40" height="18" rx="3" class="panel" />
+                <circle cx="24" cy="37" r="3" class="led" />
+                <circle cx="34" cy="37" r="3" class="led led-2" />
+                <path d="M70 28h34M70 37h34M70 46h26" class="vents" />
+                <g class="head">
+                  <rect x="56" y="6" width="8" height="18" rx="2" class="arm" />
+                  <path d="M60 24l-5 6h10z" class="tool" />
+                </g>
+                <g class="sparks">
+                  <circle cx="60" cy="50" r="1.4" />
+                  <circle cx="66" cy="50" r="1.1" />
+                  <circle cx="54" cy="50" r="1.1" />
+                </g>
+              </svg>
+
+              <!-- the part currently docked at this station -->
+              @if (t?.partId; as pid) {
+                <span class="chip docked" [attr.data-ps]="t!.partStatus">
+                  {{ shortPart(pid) }}
+                </span>
+              }
+            </div>
+
+            <!-- live readout -->
+            @if (t) {
+              <div class="st-metrics">
+                <div class="metric" [attr.data-tone]="tempTone(m)">
+                  <span class="m-label">Temp</span>
+                  <span class="m-value">{{ t.temperature | number: '1.0-0' }}<i>°</i></span>
+                </div>
+                <div class="metric">
+                  <span class="m-label">Vib</span>
+                  <span class="m-value">{{ t.vibration | number: '1.1-1' }}</span>
+                </div>
+                <div class="metric" [attr.data-tone]="qualityTone(m)">
+                  <span class="m-label">Qual</span>
+                  <span class="m-value">{{ t.qualityScore | number: '1.0-0' }}</span>
+                </div>
+              </div>
+
+              <div class="q-bar">
+                <span
+                  class="q-fill"
+                  [attr.data-tone]="qualityTone(m)"
+                  [style.width.%]="t.qualityScore"
+                ></span>
+              </div>
+
+              <div class="st-spark">
+                <app-sparkline
+                  [data]="m.tempHistory"
+                  [uid]="m.id + '-fl'"
+                  color="var(--accent-bright)"
+                />
+              </div>
+            } @else {
+              <div class="st-empty">Awaiting telemetry…</div>
+            }
+
+            <footer class="st-foot">
+              <span class="sim">×{{ m.simSpeed | number: '1.1-2' }}</span>
+              <span class="seen">{{ lastSeen(m) }}</span>
+              <span class="cta">Control →</span>
+            </footer>
+          </article>
+        }
+      }
+    }
+  </div>
+</div>

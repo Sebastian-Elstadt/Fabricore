@@ -144,16 +144,63 @@
 }
 
 /* board */
-.grid {
+.workspace {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 18px;
+  align-items: start;
+}
+
+.floor-panel {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(700px 300px at 50% -40%, rgba(56, 189, 248, 0.08), transparent 70%),
+    color-mix(in srgb, var(--surface) 80%, transparent);
+  padding: 16px 18px 8px;
+}
+
+.floor-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.floor-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.floor-sub {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* the parts panel sits beside the floor and stays in view while scrolling */
+app-parts-panel {
+  position: sticky;
+  top: 18px;
+  display: block;
+  max-height: calc(100dvh - 130px);
+}
+
+@media (max-width: 1040px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  app-parts-panel {
+    position: static;
+    max-height: 460px;
+  }
 }
 
 @media (max-width: 760px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
   .shell {
     padding: 20px 16px 40px;
   }

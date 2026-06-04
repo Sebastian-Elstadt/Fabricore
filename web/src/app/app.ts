@@ -3,7 +3,8 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FactoryService } from './factory/factory.service';
 import { ConnectionStatus } from './factory/factory.models';
 import { STATUS_LABEL } from './factory/factory.constants';
-import { MachineCard } from './factory/machine-card';
+import { FactoryFloor } from './factory/factory-floor';
+import { PartsPanel } from './factory/parts-panel';
 import { CommandDrawer } from './factory/command-drawer';
 
 const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
@@ -15,7 +16,7 @@ const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
 
 @Component({
   selector: 'app-root',
-  imports: [MachineCard, CommandDrawer],
+  imports: [FactoryFloor, PartsPanel, CommandDrawer],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -24,11 +25,13 @@ export class App implements OnInit {
 
   protected readonly machines = this.factory.machines;
   protected readonly availableCommands = this.factory.availableCommands;
+  protected readonly parts = this.factory.parts;
+  protected readonly flows = this.factory.flows;
   protected readonly connection = this.factory.connection;
 
   protected readonly connectionLabel = computed(() => CONNECTION_LABEL[this.connection()]);
 
-  private readonly selectedId = signal<string | null>(null);
+  protected readonly selectedId = signal<string | null>(null);
   protected readonly selectedMachine = computed(
     () => this.machines().find((m) => m.id === this.selectedId()) ?? null,
   );
