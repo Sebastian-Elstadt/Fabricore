@@ -1,5 +1,6 @@
 using App.Abstractions;
 using App.Commands;
+using App.Parts;
 using App.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +12,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<ITelemetryService, TelemetryService>();
         services.AddScoped<ICommandsService, CommandsService>();
+        services.AddScoped<IPartsService, PartsService>();
 
         return services;
     }

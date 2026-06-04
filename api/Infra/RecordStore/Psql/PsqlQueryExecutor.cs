@@ -13,7 +13,7 @@ public class PsqlQueryExecutor : ISqlQueryExecutor
         connection = new(connectionString);
     }
 
-    public Task ExecuteAsync(string query, object? parameters = null, CancellationToken ct = default)
+    public Task<int> ExecuteAsync(string query, object? parameters = null, CancellationToken ct = default)
     {
         var command = new CommandDefinition(query, parameters, transaction, cancellationToken: ct);
         return connection.ExecuteAsync(command);

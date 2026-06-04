@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using System.Threading.Channels;
 using Api.Realtime;
 using App.Abstractions;
@@ -12,12 +11,15 @@ namespace Api.RPC;
 public class MachineTelemetry(
     MachineCommandDispatcher dispatcher,
     FactoryEventBroadcaster broadcaster,
-    IServiceScopeFactory scopeFactory,
+    ITelemetryService telemetryService,
+    ICommandsService commandsService,
+    IPartsService partsService,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
 {
     private const int TelemetryBatchSize = 5;
-    private readonly ConcurrentDictionary<string, DateTime> partHandoffs = new();
+    private readonly ConcurrentDictionary<string, DateTime> partHandoffs = [];
+    private HashSet<string> activeParts = [];
 
     public override async Task TelemetryStream(
         IAsyncStreamReader<Proto.TelemetryMessage> readStream,
@@ -58,8 +60,13 @@ public class MachineTelemetry(
         {
             await foreach (var msg in readStream.ReadAllAsync(ct))
             {
-                logger.LogInformation("Received telemetry message:\n" + JsonSerializer.Serialize(msg));
                 DateTime timestamp = DateTimeOffset.FromUnixTimeMilliseconds(msg.TimestampMs).UtcDateTime;
+
+                if (!activeParts.Contains(msg.PartId))
+                {
+                    activeParts.Add(msg.PartId);
+                    await partsService.AddRecordAsync(msg.PartId, timestamp.AddSeconds(msg.CycleTimeSec), ct);
+                }
 
                 buffer.Add(new App.Telemetry.StoreMachinePacketCommand(
                     MachineId: msg.MachineId,
@@ -93,7 +100,7 @@ public class MachineTelemetry(
 
                 if (msg.CurrentPartStatus == "completed" && !string.IsNullOrWhiteSpace(msg.PartId))
                 {
-                    await TryHandoffPartAsync(msg.MachineId, msg.PartId, ct);
+                    await TryHandoffPartAsync(msg.MachineId, msg.PartId, timestamp, ct);
                 }
 
                 if (buffer.Count >= TelemetryBatchSize)
@@ -103,7 +110,7 @@ public class MachineTelemetry(
                 }
             }
 
-            // Flush any packets left over when the stream ends.
+            // flush any packets left over when the stream ends
             if (buffer.Count > 0)
                 await StorePacketsAsync(buffer, ct);
         }
@@ -115,9 +122,6 @@ public class MachineTelemetry(
 
     private async Task StorePacketsAsync(IReadOnlyList<App.Telemetry.StoreMachinePacketCommand> packets, CancellationToken ct)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var telemetryService = scope.ServiceProvider.GetRequiredService<ITelemetryService>();
-
         foreach (var packet in packets)
             await telemetryService.StoreMachinePacketAsync(packet, ct);
     }
@@ -146,8 +150,6 @@ public class MachineTelemetry(
                 continue;
             }
 
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
             await commandsService.MarkCommandExecutedAsync(commandId, ct);
         }
     }
@@ -162,7 +164,7 @@ public class MachineTelemetry(
         return null;
     }
 
-    private async Task TryHandoffPartAsync(string fromMachineId, string partId, CancellationToken ct)
+    private async Task TryHandoffPartAsync(string fromMachineId, string partId, DateTime messageTimestamp, CancellationToken ct)
     {
         string key = $"{partId}|{fromMachineId}";
         var now = DateTime.UtcNow;
@@ -184,6 +186,8 @@ public class MachineTelemetry(
         var toMachineId = GetSuccessorMachine(fromMachineId);
         if (toMachineId is null)
         {
+            activeParts.Remove(partId);
+            await partsService.MarkRecordFinishedAsync(partId, messageTimestamp, ct);
             logger.LogInformation($"Part {partId} completed final stage on {fromMachineId}");
             return;
         }
@@ -192,9 +196,6 @@ public class MachineTelemetry(
 
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
-
             var cmd = await commandsService.LogMachineCommandAsync(
                 new LogMachineCommandCommand(
                     toMachineId,

@@ -40,4 +40,8 @@ public class PsqlRecordStore : PsqlQueryExecutor, IRecordStore
     private IMachineCommandRepository? _machineCommandRepository;
     public IMachineCommandRepository MachineCommandRepository
         => _machineCommandRepository ??= new PsqlMachineCommandRepository(this);
+
+    private IPartRepository? _partRepository;
+    public IPartRepository PartRepository
+        => _partRepository ??= new PsqlPartRepository(this);
 }
