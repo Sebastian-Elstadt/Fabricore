@@ -2,12 +2,12 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
 COPY proto ./proto
-COPY web/Fabricore.slnx web/Directory.Build.props web/
-COPY web/Domain/Domain.csproj web/Domain/
-COPY web/Api/Api.csproj web/Api/
+COPY api/Fabricore.slnx api/Directory.Build.props api/
+COPY api/Domain/Domain.csproj api/Domain/
+COPY api/Api/Api.csproj api/Api/
 RUN cd web && dotnet restore Api/Api.csproj
 
-COPY web/ ./web/
+COPY api/ ./api/
 RUN cd web && dotnet publish Api/Api.csproj -c Release -o /publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime

@@ -1,2 +1,5 @@
-artifacts
+node_modules
+.vscode
 .gitignore
+.editorconfig
+.prettierrc
