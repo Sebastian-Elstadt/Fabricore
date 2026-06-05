@@ -11,9 +11,7 @@ namespace Api.RPC;
 public class MachineTelemetry(
     MachineCommandDispatcher dispatcher,
     FactoryEventBroadcaster broadcaster,
-    ITelemetryService telemetryService,
-    ICommandsService commandsService,
-    IPartsService partsService,
+    IServiceScopeFactory scopeFactory,
     ILogger<MachineTelemetry> logger
 ) : Proto.MachineTelemetry.MachineTelemetryBase
 {
@@ -37,11 +35,18 @@ public class MachineTelemetry(
         logger.LogInformation($"Machine connected: {machineId} | {ctx.Peer}");
         var reader = dispatcher.Register(machineId);
 
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        async Task WrapWithLinkedCancellation(Task task)
+        {
+            try { await task; }
+            finally { await linked.CancelAsync(); }
+        }
+
         try
         {
             await Task.WhenAll(
-                ReadIncomingAsync(readStream, ct),
-                WriteOutgoingAsync(machineId, reader, writeStream, ct)
+                WrapWithLinkedCancellation(ReadIncomingAsync(readStream, linked.Token)),
+                WrapWithLinkedCancellation(WriteOutgoingAsync(machineId, reader, writeStream, linked.Token))
             );
         }
         finally
@@ -53,6 +58,11 @@ public class MachineTelemetry(
 
     private async Task ReadIncomingAsync(IAsyncStreamReader<Proto.TelemetryMessage> readStream, CancellationToken ct)
     {
+        using var scope = scopeFactory.CreateScope();
+        var telemetryService = scope.ServiceProvider.GetRequiredService<ITelemetryService>();
+        var partsService = scope.ServiceProvider.GetRequiredService<IPartsService>();
+        var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
+
         var buffer = new List<App.Telemetry.StoreMachinePacketCommand>(TelemetryBatchSize);
 
         try
@@ -99,59 +109,69 @@ public class MachineTelemetry(
 
                 if (msg.CurrentPartStatus == "completed" && !string.IsNullOrWhiteSpace(msg.PartId))
                 {
-                    await TryHandoffPartAsync(msg.MachineId, msg.PartId, timestamp, ct);
+                    await TryHandoffPartAsync(commandsService, partsService, msg.MachineId, msg.PartId, timestamp, ct);
                 }
 
                 if (buffer.Count >= TelemetryBatchSize)
                 {
-                    await StorePacketsAsync(buffer, ct);
+                    await telemetryService.StoreMachinePacketsAsync(buffer, ct);
                     buffer.Clear();
                 }
             }
 
             // flush any packets left over when the stream ends
             if (buffer.Count > 0)
-                await StorePacketsAsync(buffer, ct);
+                await telemetryService.StoreMachinePacketsAsync(buffer, ct);
         }
+        catch (OperationCanceledException) { } // disconnected
         catch (Exception ex)
         {
             logger.LogError($"Machine read stream error: {ex}");
         }
     }
 
-    private Task StorePacketsAsync(IReadOnlyList<App.Telemetry.StoreMachinePacketCommand> packets, CancellationToken ct)
-        => telemetryService.StoreMachinePacketsAsync(packets, ct);
-
     private async Task WriteOutgoingAsync(string machineId, ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
     {
-        await foreach (var cmd in reader.ReadAllAsync(ct))
+        using var scope = scopeFactory.CreateScope();
+        var commandsService = scope.ServiceProvider.GetRequiredService<ICommandsService>();
+
+        try
         {
-            await writeStream.WriteAsync(cmd);
-
-            broadcaster.Broadcast(
-                FactoryEvent.ForCommand(
-                    new FactoryCommandEvent(
-                        MachineId: machineId,
-                        CommandId: cmd.CommandId,
-                        CommandType: cmd.CommandType,
-                        Parameters: new Dictionary<string, string>(cmd.Parameters),
-                        Timestamp: DateTime.UtcNow
-                    )
-                )
-            );
-
-            if (!Guid.TryParse(cmd.CommandId, out var commandId))
+            await foreach (var cmd in reader.ReadAllAsync(ct))
             {
-                logger.LogWarning($"Sent command with invalid id '{cmd.CommandId}' to {machineId}; skipping executed-on update.");
-                continue;
-            }
+                await writeStream.WriteAsync(cmd);
 
-            await commandsService.MarkCommandExecutedAsync(commandId, ct);
+                broadcaster.Broadcast(
+                    FactoryEvent.ForCommand(
+                        new FactoryCommandEvent(
+                            MachineId: machineId,
+                            CommandId: cmd.CommandId,
+                            CommandType: cmd.CommandType,
+                            Parameters: new Dictionary<string, string>(cmd.Parameters),
+                            Timestamp: DateTime.UtcNow
+                        )
+                    )
+                );
+
+                if (!Guid.TryParse(cmd.CommandId, out var commandId))
+                {
+                    logger.LogWarning($"Sent command with invalid id '{cmd.CommandId}' to {machineId}; skipping executed-on update.");
+                    continue;
+                }
+
+                await commandsService.MarkCommandExecutedAsync(commandId, ct);
+            }
+        }
+        catch (OperationCanceledException) { } // disconnected
+        catch (Exception ex)
+        {
+            logger.LogError($"Machine command write error for {machineId}: {ex}");
         }
     }
 
     private string? GetSuccessorMachine(string machineId)
     {
+        // to get this POC done in time, i'm using a simple/crude machine chain defined here instead of the database records
         if (
             machineId.StartsWith("M", StringComparison.OrdinalIgnoreCase) &&
             int.TryParse(machineId.AsSpan(1), out var n) &&
@@ -160,7 +180,13 @@ public class MachineTelemetry(
         return null;
     }
 
-    private async Task TryHandoffPartAsync(string fromMachineId, string partId, DateTime messageTimestamp, CancellationToken ct)
+    private async Task TryHandoffPartAsync(
+        ICommandsService commandsService,
+        IPartsService partsService,
+        string fromMachineId,
+        string partId,
+        DateTime messageTimestamp,
+        CancellationToken ct)
     {
         string key = $"{partId}|{fromMachineId}";
         var now = DateTime.UtcNow;
@@ -176,9 +202,6 @@ public class MachineTelemetry(
 
         if (!partHandoffs.TryAdd(key, now)) return; // already handed off
 
-        // for now, this is a very simple setup on the server's side.
-        // next I want to track the parts here as they move until we hit the last machine,
-        // then I want to write an audit trail of the part to the record store.
         var toMachineId = GetSuccessorMachine(fromMachineId);
         if (toMachineId is null)
         {

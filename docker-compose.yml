@@ -11,7 +11,7 @@ x-machine-base: &machine-base
 x-machine-env: &machine-env
   BACKEND_GRPC_URL: http://web:50051
   SIM_SPEED: 1.0
-  PART_CYCLE_BASE_MS: 5000
+  PART_CYCLE_BASE_MS: 10000
   TELEMETRY_INTERVAL_MS: 2000
 
 networks:
