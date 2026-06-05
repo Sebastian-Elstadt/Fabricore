@@ -46,6 +46,8 @@ export class FactoryService implements OnDestroy {
   private readonly _availableCommands = signal<AvailableCommand[]>([]);
   private readonly _parts = signal<Part[]>([]);
   private readonly _flows = signal<PartFlow[]>([]);
+  /** Per-part telemetry logs, newest-first, kept live as SSE packets arrive. */
+  private readonly _partLogs = signal<Record<string, PartLog[]>>({});
   private readonly _connection = signal<ConnectionStatus>('connecting');
   private readonly _lastError = signal<string | null>(null);
 
@@ -53,6 +55,7 @@ export class FactoryService implements OnDestroy {
   readonly availableCommands = this._availableCommands.asReadonly();
   readonly parts = this._parts.asReadonly();
   readonly flows = this._flows.asReadonly();
+  readonly partLogs = this._partLogs.asReadonly();
   readonly connection = this._connection.asReadonly();
   readonly lastError = this._lastError.asReadonly();
 
@@ -150,11 +153,26 @@ export class FactoryService implements OnDestroy {
       qualityHistory: pushCapped(m.qualityHistory, telemetry.qualityScore),
     }));
 
+    // Keep an open part-log drawer live: append this packet to the part's log
+    // trail (only for parts we've already fetched logs for).
+    if (telemetry.partId) {
+      this.appendPartLog(telemetry.partId, partLogFromEvent(evt));
+    }
+
     // A machine reporting a part it wasn't holding a moment ago means the part
     // just arrived — animate it travelling in and track it on the parts panel.
     if (idx >= 0 && telemetry.partId && telemetry.partId !== prevPartId) {
       this.onPartArrived(idx, telemetry.partId, telemetry.timestamp);
     }
+  }
+
+  private appendPartLog(partId: string, log: PartLog): void {
+    this._partLogs.update((cache) => {
+      const existing = cache[partId];
+      // Only grow trails the UI has already loaded; ignore the rest.
+      if (!existing) return cache;
+      return { ...cache, [partId]: [log, ...existing] };
+    });
   }
 
   private applyCommand(evt: CommandEventDto): void {
@@ -237,11 +255,28 @@ export class FactoryService implements OnDestroy {
     );
   }
 
-  async getPartLogs(partId: string): Promise<PartLog[]> {
+  /**
+   * Fetch a part's full telemetry trail and seed {@link partLogs} for it, so
+   * subsequent SSE packets for the part are appended live. Newest-first.
+   */
+  async loadPartLogs(partId: string): Promise<void> {
     const logs = await firstValueFrom(
       this.http.get<PartLogDto[]>(`${API_BASE}/api/parts/${encodeURIComponent(partId)}/logs`),
     );
-    return (logs ?? []).map(toPartLog);
+    const ordered = (logs ?? [])
+      .map(toPartLog)
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    this._partLogs.update((cache) => ({ ...cache, [partId]: ordered }));
+  }
+
+  /** Drop a cached part-log trail so a retry re-fetches it from scratch. */
+  clearPartLogs(partId: string): void {
+    this._partLogs.update((cache) => {
+      if (!(partId in cache)) return cache;
+      const next = { ...cache };
+      delete next[partId];
+      return next;
+    });
   }
 
   // --- helpers -----------------------------------------------------------
@@ -311,6 +346,20 @@ function toPartLog(dto: PartLogDto): PartLog {
     spindleLoad: dto.SpindleLoad,
     cycleTimeSec: dto.CycleTimeSec,
     qualityScore: dto.QualityScore,
+  };
+}
+
+function partLogFromEvent(evt: TelemetryEventDto): PartLog {
+  return {
+    machineId: evt.MachineId,
+    timestamp: evt.Timestamp,
+    status: normalizeStatus(evt.Status),
+    partStatus: emptyToNull(evt.PartStatus),
+    temperature: evt.Temperature,
+    vibration: evt.Vibration,
+    spindleLoad: evt.SpindleLoad,
+    cycleTimeSec: evt.CycleTimeSec,
+    qualityScore: evt.QualityScore,
   };
 }
 

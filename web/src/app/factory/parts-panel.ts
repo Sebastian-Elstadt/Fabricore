@@ -13,8 +13,10 @@ import { PART_STATUS_LABEL, STATUS_LABEL } from './factory.constants';
 import { FactoryService } from './factory.service';
 import { ClockService, relativeTime } from './clock.service';
 
+type LogFetchStatus = 'loading' | 'ready' | 'error';
+
 interface LogState {
-  status: 'loading' | 'ready' | 'error';
+  status: LogFetchStatus;
   logs: PartLog[];
 }
 
@@ -34,8 +36,9 @@ export class PartsPanel {
   private readonly clock = inject(ClockService);
 
   protected readonly expandedId = signal<string | null>(null);
-  /** Per-part log fetch state, keyed by part id. */
-  private readonly logCache = signal<Record<string, LogState>>({});
+  /** Per-part fetch status, keyed by part id. The log entries themselves live
+   * in the {@link FactoryService} so SSE packets can extend them live. */
+  private readonly logStatus = signal<Record<string, LogFetchStatus>>({});
 
   protected readonly stages = computed(() =>
     Array.from({ length: this.stageCount() }, (_, i) => i),
@@ -50,7 +53,9 @@ export class PartsPanel {
   }
 
   protected logStateFor(id: string): LogState | null {
-    return this.logCache()[id] ?? null;
+    const status = this.logStatus()[id];
+    if (!status) return null;
+    return { status, logs: this.factory.partLogs()[id] ?? [] };
   }
 
   protected partStatusLabel(part: Part): string {
@@ -88,23 +93,21 @@ export class PartsPanel {
   }
 
   private async loadLogs(partId: string): Promise<void> {
-    const cached = this.logCache()[partId];
-    if (cached && cached.status !== 'error') return;
+    const status = this.logStatus()[partId];
+    if (status === 'loading' || status === 'ready') return;
 
-    this.patchLog(partId, { status: 'loading', logs: [] });
+    this.setStatus(partId, 'loading');
     try {
-      const logs = await this.factory.getPartLogs(partId);
-      const ordered = logs
-        .slice()
-        .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
-      this.patchLog(partId, { status: 'ready', logs: ordered });
+      await this.factory.loadPartLogs(partId);
+      this.setStatus(partId, 'ready');
     } catch {
-      this.patchLog(partId, { status: 'error', logs: [] });
+      this.setStatus(partId, 'error');
     }
   }
 
   protected retry(partId: string): void {
-    this.logCache.update((c) => {
+    this.factory.clearPartLogs(partId);
+    this.logStatus.update((c) => {
       const next = { ...c };
       delete next[partId];
       return next;
@@ -112,8 +115,8 @@ export class PartsPanel {
     void this.loadLogs(partId);
   }
 
-  private patchLog(partId: string, state: LogState): void {
-    this.logCache.update((c) => ({ ...c, [partId]: state }));
+  private setStatus(partId: string, status: LogFetchStatus): void {
+    this.logStatus.update((c) => ({ ...c, [partId]: status }));
   }
 
   protected shortPart(partId: string): string {
