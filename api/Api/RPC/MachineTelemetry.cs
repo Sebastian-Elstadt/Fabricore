@@ -119,11 +119,8 @@ public class MachineTelemetry(
         }
     }
 
-    private async Task StorePacketsAsync(IReadOnlyList<App.Telemetry.StoreMachinePacketCommand> packets, CancellationToken ct)
-    {
-        foreach (var packet in packets)
-            await telemetryService.StoreMachinePacketAsync(packet, ct);
-    }
+    private Task StorePacketsAsync(IReadOnlyList<App.Telemetry.StoreMachinePacketCommand> packets, CancellationToken ct)
+        => telemetryService.StoreMachinePacketsAsync(packets, ct);
 
     private async Task WriteOutgoingAsync(string machineId, ChannelReader<Proto.CommandMessage> reader, IServerStreamWriter<Proto.CommandMessage> writeStream, CancellationToken ct)
     {

@@ -1,0 +1,12 @@
+CREATE INDEX idx_telemetry_machine_timestamp
+ON machine_telemetry_packets (machine_id, timestamp DESC);
+
+CREATE INDEX idx_telemetry_part_timestamp
+ON machine_telemetry_packets (part_id, timestamp DESC)
+WHERE part_id IS NOT NULL;
+
+CREATE INDEX idx_commands_machine_created
+ON machine_commands (machine_id, created_on DESC);
+
+CREATE INDEX idx_parts_started_on
+ON parts (started_on DESC);

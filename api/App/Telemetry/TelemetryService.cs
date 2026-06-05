@@ -4,9 +4,9 @@ namespace App.Telemetry;
 
 public class TelemetryService(IRecordStore recordStore) : ITelemetryService
 {
-    public async Task StoreMachinePacketAsync(StoreMachinePacketCommand cmd, CancellationToken ct = default)
+    public Task StoreMachinePacketsAsync(IReadOnlyCollection<StoreMachinePacketCommand> cmds, CancellationToken ct = default)
     {
-        var packet = cmd.ToMachineTelemetryPacket();
-        await recordStore.MachineTelemetryPacketRepository.AddAsync(packet, ct);
+        var packets = cmds.Select(c => c.ToMachineTelemetryPacket()).ToList();
+        return recordStore.MachineTelemetryPacketRepository.AddRangeAsync(packets, ct);
     }
 }
