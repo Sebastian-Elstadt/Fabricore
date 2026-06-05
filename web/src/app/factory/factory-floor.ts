@@ -11,7 +11,6 @@ import { DecimalPipe } from '@angular/common';
 import { Machine, MachineStatus, PartFlow } from './factory.models';
 import { STATUS_LABEL } from './factory.constants';
 import { ClockService, relativeTime } from './clock.service';
-import { Sparkline } from './sparkline';
 
 /** Ordered nodes laid out left→right across the production line. */
 type FloorNode =
@@ -23,7 +22,7 @@ type FloorNode =
 @Component({
   selector: 'app-factory-floor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, Sparkline],
+  imports: [DecimalPipe],
   templateUrl: './factory-floor.html',
   styleUrl: './factory-floor.scss',
 })

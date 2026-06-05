@@ -55,7 +55,7 @@
 
   <main class="board">
     @if (machines().length) {
-      <div class="workspace">
+      <div class="workspace" [class.has-panel]="selectedMachine()">
         <section class="floor-panel" aria-label="Factory floor">
           <div class="floor-head">
             <h2>Production Line</h2>
@@ -68,6 +68,15 @@
             (select)="onSelect($event)"
           />
         </section>
+
+        @if (selectedMachine(); as sel) {
+          <app-command-drawer
+            class="dock-panel"
+            [machine]="sel"
+            [availableCommands]="availableCommands()"
+            (close)="onCloseDrawer()"
+          />
+        }
 
         <app-parts-panel [parts]="parts()" [stageCount]="machines().length" />
       </div>
@@ -84,11 +93,3 @@
     }
   </main>
 </div>
-
-@if (selectedMachine(); as sel) {
-  <app-command-drawer
-    [machine]="sel"
-    [availableCommands]="availableCommands()"
-    (close)="onCloseDrawer()"
-  />
-}

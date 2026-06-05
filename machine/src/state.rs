@@ -221,6 +221,6 @@ impl State {
 }
 
 fn round(num: f32, decimal_places: u8) -> f32 {
-    let x = (decimal_places as f32) * 10.0;
+    let x = 10.0_f32.powf(decimal_places as f32);
     (num * x).round() / x
 }

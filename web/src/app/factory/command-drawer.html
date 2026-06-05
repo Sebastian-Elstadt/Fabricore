@@ -1,13 +1,11 @@
 @let m = machine();
 @let t = m.latest;
 
-<div class="backdrop" (click)="onClose()"></div>
-
 <aside
   class="panel"
   role="dialog"
-  aria-modal="true"
   [attr.aria-label]="'Controls for machine ' + m.id"
+  [attr.data-status]="status()"
 >
   <header class="panel-head" [attr.data-status]="status()">
     <div class="head-id">

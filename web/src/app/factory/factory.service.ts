@@ -28,7 +28,7 @@ import {
 
 const HISTORY_LIMIT = 48;
 const COMMAND_LOG_LIMIT = 25;
-const PARTS_LIMIT = 40;
+const PARTS_LIMIT = 10;
 /** How long a travelling-part chip animates along a conveyor before it is pruned. */
 const FLOW_DURATION_MS = 1500;
 

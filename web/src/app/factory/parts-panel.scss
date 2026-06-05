@@ -112,7 +112,6 @@
   height: 8px;
   border-radius: 50%;
   background: var(--status-processing);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--status-processing) 60%, transparent);
 }
 
 .state-dot:not(.done) {
@@ -121,7 +120,6 @@
 
 .state-dot.done {
   background: var(--good);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--good) 60%, transparent);
 }
 
 @keyframes pulse {
@@ -142,7 +140,7 @@
 .stage {
   width: 12px;
   height: 4px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--surface-3);
 }
 
@@ -211,7 +209,7 @@
   background: none;
   border: 1px solid var(--border-strong);
   color: var(--accent-bright);
-  border-radius: 6px;
+  border-radius: 0;
   padding: 3px 9px;
   font-size: 0.66rem;
   cursor: pointer;
@@ -297,7 +295,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: 0;
   color: var(--s);
   background: color-mix(in srgb, var(--s) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--s) 28%, transparent);

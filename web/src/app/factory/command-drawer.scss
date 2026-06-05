@@ -1,36 +1,22 @@
 :host {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
   display: block;
 }
 
-.backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(3, 6, 14, 0.62);
-  backdrop-filter: blur(3px);
-  animation: fade 0.18s ease;
-}
-
+/* docked inline panel — never covers the production line */
 .panel {
   --s: var(--status-unknown);
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(440px, 100vw);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 22px 22px 26px;
+  gap: 16px;
+  padding: 16px 16px 18px;
+  max-height: calc(100dvh - 110px);
   overflow-y: auto;
-  background:
-    radial-gradient(600px 300px at 100% -5%, color-mix(in srgb, var(--s) 12%, transparent), transparent 60%),
-    var(--bg-2);
-  border-left: 1px solid var(--border-strong);
-  box-shadow: -30px 0 70px -30px rgba(0, 0, 0, 0.9);
-  animation: slide 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--s);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  animation: slide 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .panel[data-status='processing'] { --s: var(--status-processing); }
@@ -40,8 +26,8 @@
 .panel[data-status='stopped']    { --s: var(--status-stopped); }
 
 @keyframes slide {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 @keyframes fade {
   from { opacity: 0; }
@@ -98,7 +84,7 @@
   color: var(--s);
   background: color-mix(in srgb, var(--s) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--s) 35%, transparent);
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 .status-pill .dot {
@@ -117,7 +103,7 @@
   color: var(--text-dim);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 0;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
@@ -196,7 +182,7 @@
   font-family: var(--font-mono);
   font-size: 0.66rem;
   padding: 1px 7px;
-  border-radius: 99px;
+  border-radius: 0;
   color: var(--text-dim);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -253,7 +239,7 @@
   flex-shrink: 0;
   color: var(--c);
   background: color-mix(in srgb, var(--c) 14%, transparent);
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 .cmd-label {
@@ -323,7 +309,7 @@
   color: var(--text);
   background: var(--bg-2);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: 0;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -344,13 +330,13 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #fff;
-  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+  background: var(--accent);
   border: none;
-  border-radius: 9px;
+  border-radius: 0;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: background 0.15s ease;
 }
-.apply:hover:not(:disabled) { filter: brightness(1.08); }
+.apply:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
 .apply:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* feedback */
@@ -358,7 +344,7 @@
   margin-top: 12px;
   padding: 10px 13px;
   font-size: 0.78rem;
-  border-radius: 9px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   animation: fade 0.2s ease;
@@ -381,7 +367,7 @@
 
 /* history */
 .history {
-  margin-top: auto;
+  margin-top: 4px;
 }
 
 .cmd-log {
@@ -410,7 +396,6 @@
 }
 .log-dot.executed {
   background: var(--good);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--good) 60%, transparent);
 }
 
 .log-name {
@@ -431,7 +416,7 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 2px 7px;
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--text-faint);
   background: var(--surface);
   border: 1px solid var(--border);
